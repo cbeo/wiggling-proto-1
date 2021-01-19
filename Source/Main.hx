@@ -25,8 +25,10 @@ class Main extends Sprite
   var drawing = false;
   var timestamp:Float;
 
+  var circleTrials = 500;
+
   var sampleRate:Float = 0.01;
-  var sampleGap:Float = 15.0;
+  var sampleGap:Float = 5.0;
 
   var path:Array<Pt>;
 
@@ -53,48 +55,50 @@ class Main extends Sprite
         var bbox = pathBoundingBox();
         var rad = radiusGradient * radiiSizes;
         while (rad > 0) {
-          for (i in 0...500) {
+          for (i in 0...circleTrials) {
             var circ = randomCircle(bbox, rad);
             if ( validCircle(circ)) circles.push(circ);
           }
           rad -= radiusGradient;
         }
       }
+
+    // for (pt in path)
+    //   circles.push({x:pt.x, y:pt.y, radius:2});
   }
 
   function addTopology()
   {
     topology = new Map();
-    var allShit = (circles:Array<Pt>).concat(path);
-
-
-    for (c1 in allShit) {
+    for (c1 in circles) {
       var nbrs = [];
-
       for (c2 in circles)
-        if (c2 != c1 && !(lineIntersectsPath(c1, c2))) {
-
-          if (nbrs.length < subgraphSize) {
-            nbrs.push( c2 );
-          } else {
-            var dist = ptDist( c1, c2 );
-            var traversing = true;
-            var i = 0;
-            while (traversing && i < subgraphSize) {
-              if (dist < ptDist(c1, nbrs[i])) {
-                nbrs[i] = c2;
-                traversing = false;
+        {
+          if (c2 != c1 && !lineIntersectsPath(c1,c2) ) {
+            if (nbrs.length < subgraphSize)
+              {
+              nbrs.push( c2 );
               }
-              i += 1;
-            }
+            else
+              {
+                var dist = ptDist( c1, c2 );
+                var traversing = true;
+                var i = 0;
+                while (traversing && i < subgraphSize)
+                  {
+                    if (dist < ptDist(c1, nbrs[i]))
+                      {
+                        nbrs[i] = c2;
+                        traversing = false;
+                      }
+                    i += 1;
+                  }
+              }
           }
+          topology[c1] = nbrs;
         }
-      topology[c1] = nbrs;
     }
   }
-
-  
-
 
   // circles are points
   function nearestValidNeighbors(center:Pt, n:Int):Array<Pt>
@@ -120,7 +124,27 @@ class Main extends Sprite
 
     return linesIntersect(a,b,path[path.length - 1],path[0]);
   }
-  
+
+  function lineIntersectsPathAt(a:Pt,b:Pt):Array<Pt>
+  {
+    var intersections = [];
+
+    for (i in 0...path.length - 1)
+      switch (linesIntersectAt(a,b,path[i],path[i+1]))
+        {
+        case Some(pt): intersections.push( pt );
+        case None: {}
+        }
+
+    switch ( linesIntersectAt(a,b,path[path.length - 1],path[0]))
+      {
+      case Some(pt):intersections.push(pt);
+      case None:{}
+      }
+
+    return intersections;
+  }
+
   function validCircle(circ:Circle):Bool
   {
     return circleInsideClosedPath(circ) && !circleIntersectsCircles(circ);
@@ -281,7 +305,6 @@ class Main extends Sprite
   {
     graphics.lineStyle(1,0xff0000);
     for (c in circles) drawCircle(c);
-    for (pt in path) drawCircle({x:pt.x, y:pt.y, radius:2});
   }
 
   function drawTopology()
@@ -322,12 +345,6 @@ class Main extends Sprite
 
     graphics.lineStyle(2, 0);
     graphics.lineTo(path[0].x, path[0].y);
-
-    
-    
-    // var bbox = pathBoundingBox();
-    // graphics.lineStyle(1,0x00ff00);
-    // graphics.drawRect(bbox.x,bbox.y,bbox.width,bbox.height);
 
     drawCircles();
     drawTopology();
