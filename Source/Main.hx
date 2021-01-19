@@ -22,12 +22,20 @@ typedef Circle = Pt & {radius:Float};
 class Main extends Sprite
 {
 
-  var path:Array<Pt>;
   var drawing = false;
   var timestamp:Float;
 
+  var sampleRate:Float = 0.01;
+  var sampleGap:Float = 15.0;
+
+  var path:Array<Pt>;
+
+  var radiiSizes = 4;
   var radiusGradient = 10.0;
   var circles:Array<Circle> = [];
+
+  var subgraphSize = 3;
+  var topology:Map<Pt,Array<Circle>> = new Map();
   
   public function new()
   {
@@ -43,8 +51,7 @@ class Main extends Sprite
     if (path.length > 2 && !drawing)
       {
         var bbox = pathBoundingBox();
-        var maxDim = Math.max(bbox.width, bbox.height);
-        var rad = radiusGradient * Math.floor(maxDim / radiusGradient);
+        var rad = radiusGradient * radiiSizes;
         while (rad > 0) {
           for (i in 0...500) {
             var circ = randomCircle(bbox, rad);
@@ -54,6 +61,39 @@ class Main extends Sprite
         }
       }
   }
+
+  function addTopology()
+  {
+    topology = new Map();
+    var allShit = (circles:Array<Pt>).concat(path);
+
+
+    for (c1 in allShit) {
+      var nbrs = [];
+
+      for (c2 in circles)
+        if (c2 != c1 && !(lineIntersectsPath(c1, c2))) {
+
+          if (nbrs.length < subgraphSize) {
+            nbrs.push( c2 );
+          } else {
+            var dist = ptDist( c1, c2 );
+            var traversing = true;
+            var i = 0;
+            while (traversing && i < subgraphSize) {
+              if (dist < ptDist(c1, nbrs[i])) {
+                nbrs[i] = c2;
+                traversing = false;
+              }
+              i += 1;
+            }
+          }
+        }
+      topology[c1] = nbrs;
+    }
+  }
+
+  
 
 
   // circles are points
@@ -69,6 +109,7 @@ class Main extends Sprite
           var d = ptDist(pt, center);
           nearest = [for (np in nearest) if (d < ptDist(np,center)) pt else np];
         }
+
     return nearest;
   }
 
@@ -240,6 +281,17 @@ class Main extends Sprite
   {
     graphics.lineStyle(1,0xff0000);
     for (c in circles) drawCircle(c);
+    for (pt in path) drawCircle({x:pt.x, y:pt.y, radius:2});
+  }
+
+  function drawTopology()
+  {
+    graphics.lineStyle(1,0x0000ff);
+    for (pt in topology.keys())
+      for (nbr in topology[pt]) {
+        graphics.moveTo( pt.x, pt.y );
+        graphics.lineTo( nbr.x, nbr.y );
+      }
   }
 
   function drawNearestNeighbors(n:Int)
@@ -250,11 +302,11 @@ class Main extends Sprite
         graphics.moveTo(c.x,c.y);
         graphics.lineTo(nbr.x,nbr.y);
       }
-    for (c in path)
-      for (nbr in nearestValidNeighbors(c, n)) {
-        graphics.moveTo(c.x,c.y);
-        graphics.lineTo(nbr.x,nbr.y);
-      }
+    // for (c in path)
+    //   for (nbr in nearestValidNeighbors(c, n)) {
+    //     graphics.moveTo(c.x,c.y);
+    //     graphics.lineTo(nbr.x,nbr.y);
+    //   }
   }
 
   function render()
@@ -264,20 +316,22 @@ class Main extends Sprite
     graphics.moveTo( path[0].x,  path[0].y );
 
     for (i in 1...path.length) {
-      graphics.lineStyle(3, 0);
+      graphics.lineStyle(2, 0);
       graphics.lineTo( path[i].x, path[i].y );
     }
 
-
-    graphics.lineStyle(3, 0);
+    graphics.lineStyle(2, 0);
     graphics.lineTo(path[0].x, path[0].y);
 
-    var bbox = pathBoundingBox();
-    graphics.lineStyle(1,0x00ff00);
-    graphics.drawRect(bbox.x,bbox.y,bbox.width,bbox.height);
+    
+    
+    // var bbox = pathBoundingBox();
+    // graphics.lineStyle(1,0x00ff00);
+    // graphics.drawRect(bbox.x,bbox.y,bbox.width,bbox.height);
 
     drawCircles();
-    drawNearestNeighbors(4);
+    drawTopology();
+    //drawNearestNeighbors(4);
     
   }
 
@@ -325,7 +379,7 @@ class Main extends Sprite
     var stamp = Timer.stamp();
     var pt = {x:e.localX, y:e.localY};
 
-    if (drawing && (stamp - timestamp > 0.01)) {
+    if (drawing && (stamp - timestamp > sampleRate) && ptDist(pt, path[path.length-1]) >= sampleGap) {
       switch (findSelfIntersectionIndex( pt ))
         {
         case Some(i):
@@ -342,7 +396,7 @@ class Main extends Sprite
           path[0] = firstAndLast;
 
           addCircles();
-          //connectCirclesAndPath();
+          addTopology();
           render();
           
           trace("path edge differences: ");
