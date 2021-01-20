@@ -32,11 +32,11 @@ class Main extends Sprite
 
   var path:Array<Pt>;
 
-  var radiiSizes = 4;
-  var radiusGradient = 10.0;
+  var radiiSizes = 8;
+  var radiusGradient = 5.0;
   var circles:Array<Circle> = [];
 
-  var subgraphSize = 3;
+  var subgraphSize = 4;
   var topology:Map<Pt,Array<Circle>> = new Map();
   
   public function new()
@@ -99,21 +99,21 @@ class Main extends Sprite
         }
     }
 
-    for (pt in path)
-      {
-        var nearest = circles[0];
-        var dist = ptDist(pt, nearest);
-        for (c in circles)
-          {
-            var tmpDist = ptDist(c,pt);
-            if (tmpDist < dist && !lineIntersectsPath(pt, c))
-              {
-                dist = tmpDist;
-                nearest = c;
-              }
-          }
-        topology[pt] = [nearest];
-      }
+    // for (pt in path)
+    //   {
+    //     var nearest = circles[0];
+    //     var dist = ptDist(pt, nearest);
+    //     for (c in circles)
+    //       {
+    //         var tmpDist = ptDist(c,pt);
+    //         if (tmpDist < dist && !lineIntersectsPath(pt, c))
+    //           {
+    //             dist = tmpDist;
+    //             nearest = c;
+    //           }
+    //       }
+    //     topology[pt] = [nearest];
+    //   }
   }
 
   // circles are points
@@ -319,18 +319,22 @@ class Main extends Sprite
 
   function drawCircles()
   {
-    graphics.lineStyle(1,0xff0000);
+    graphics.beginFill(0);
+    //graphics.lineStyle(1,0xff0000);
     for (c in circles) drawCircle(c);
   }
 
   function drawTopology()
   {
-    graphics.lineStyle(1,0x0000ff);
-    for (pt in topology.keys())
+    graphics.beginFill(0);
+    //graphics.lineStyle(1,0x0000ff);
+    for (pt in topology.keys()) {
+      graphics.moveTo( pt.x, pt.y );      
       for (nbr in topology[pt]) {
-        graphics.moveTo( pt.x, pt.y );
         graphics.lineTo( nbr.x, nbr.y );
       }
+      graphics.lineTo(pt.x, pt.y);
+    }
   }
 
   function drawNearestNeighbors(n:Int)
@@ -352,15 +356,15 @@ class Main extends Sprite
   {
     graphics.clear();
 
-    graphics.moveTo( path[0].x,  path[0].y );
+    // graphics.moveTo( path[0].x,  path[0].y );
 
-    for (i in 1...path.length) {
-      graphics.lineStyle(2, 0);
-      graphics.lineTo( path[i].x, path[i].y );
-    }
+    // for (i in 1...path.length) {
+    //   graphics.lineStyle(2, 0);
+    //   graphics.lineTo( path[i].x, path[i].y );
+    // }
 
-    graphics.lineStyle(2, 0);
-    graphics.lineTo(path[0].x, path[0].y);
+    // graphics.lineStyle(2, 0);
+    // graphics.lineTo(path[0].x, path[0].y);
 
     drawCircles();
     drawTopology();
@@ -407,6 +411,11 @@ class Main extends Sprite
     return null;
   }
 
+  function pathIsCounterClockwise () : Bool
+  {
+    return path.length > 2 &&  isCounterClockwiseOrder(path[0],path[1],path[2]);
+  }
+  
   function onMouseMove (e)
   {
     var stamp = Timer.stamp();
@@ -427,6 +436,9 @@ class Main extends Sprite
           trace( firstAndLast );
           
           path[0] = firstAndLast;
+
+          if (pathIsCounterClockwise())
+            path.reverse();
 
           addCircles();
           addTopology();
@@ -459,8 +471,9 @@ class Main extends Sprite
     
   }
 
-  static function ptDist(p1:Pt,p2:Pt)
+  static function ptDist(p1:Pt,p2:Pt) : Float
   {
+    if (p1 == null || p2 == null) return 0;
     var dx = p2.x - p1.x;
     var dy = p2.y - p1.y;
     return Math.sqrt( dx*dx + dy*dy);
