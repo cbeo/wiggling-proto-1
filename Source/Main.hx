@@ -25,7 +25,7 @@ class Main extends Sprite
   var drawing = false;
   var timestamp:Float;
 
-  var circleTrials = 500;
+  var circleTrials = 10000;
 
   var sampleRate:Float = 0.01;
   var sampleGap:Float = 5.0;
@@ -98,6 +98,22 @@ class Main extends Sprite
           topology[c1] = nbrs;
         }
     }
+
+    for (pt in path)
+      {
+        var nearest = circles[0];
+        var dist = ptDist(pt, nearest);
+        for (c in circles)
+          {
+            var tmpDist = ptDist(c,pt);
+            if (tmpDist < dist && !lineIntersectsPath(pt, c))
+              {
+                dist = tmpDist;
+                nearest = c;
+              }
+          }
+        topology[pt] = [nearest];
+      }
   }
 
   // circles are points
