@@ -8,6 +8,8 @@ import openfl.ui.Keyboard;
 import haxe.Timer;
 import haxe.ds.Option;
 
+using Lambda;
+
 typedef Pt= {x:Float, y:Float};
 
 typedef Rect = Pt & {width:Float, height:Float};
@@ -19,6 +21,8 @@ enum Line {
 }
 
 typedef Circle = Pt & {radius:Float};
+typedef Neighbor = {circle:Circle, distance:Float};
+
 
 class Main extends Sprite
 {
@@ -38,8 +42,8 @@ class Main extends Sprite
   var radiusGradient = 4.0;
   var circles:Array<Circle> = [];
 
-  var subgraphSize = 3;
-  var topology:Map<Pt,Array<Circle>> = new Map();
+  var subgraphSize = 2;
+  var topology:Map<Pt,Array<Neighbor>> = new Map();
   
   public function new()
   {
@@ -70,53 +74,108 @@ class Main extends Sprite
     //   circles.push({x:pt.x, y:pt.y, radius:2});
   }
 
-  function addTopology()
-  {
-    topology = new Map();
-    for (c1 in circles) {
-      var nbrs = [];
-      for (c2 in circles)
-        {
-          if (c2 != c1 && !lineIntersectsPath(c1,c2) ) {
-            if (nbrs.length < subgraphSize)
-              {
-              nbrs.push( c2 );
-              }
-            else
-              {
-                var dist = ptDist( c1, c2 );
-                var traversing = true;
-                var i = 0;
-                while (traversing && i < subgraphSize)
-                  {
-                    if (dist < ptDist(c1, nbrs[i]))
-                      {
-                        nbrs[i] = c2;
-                        traversing = false;
-                      }
-                    i += 1;
-                  }
-              }
-          }
-          topology[c1] = nbrs;
-        }
-    }
 
-    // for (pt in path)
-    //   {
-    //     var nearest = circles[0];
-    //     var dist = ptDist(pt, nearest);
-    //     for (c in circles)
-    //       {
-    //         var tmpDist = ptDist(c,pt);
-    //         if (tmpDist < dist && !lineIntersectsPath(pt, c))
-    //           {
-    //             dist = tmpDist;
-    //             nearest = c;
-    //           }
-    //       }
-    //     topology[pt] = [nearest];
-    //   }
+  function isNeighbor(c1: Circle, c2:Circle) :Bool
+  {
+    var nbrs = topology[c1];
+    return nbrs != null && nbrs.exists( n -> n.circle == c2);
+  }
+
+  function newTopology ()
+  {
+    var top:Map<Pt,Array<Neighbor>> = new Map();
+    for (c in circles)
+      top[c] = [];
+    return top;
+  }
+
+  // function addTopology()
+  // {
+  //   topology = newTopology();
+  //   for (c1 in circles)
+  //     {
+  //       var nbrs = topology[c1];
+  //       for (c2 in circles)
+  //         {
+  //           var c2nbrs = topology[ c2 ];
+  //           if (c1 != c2 &&
+  //               c2nbrs.length < subgraphSize && 
+  //               !isNeighbor(c1, c2) &&
+  //               !lineIntersectsPath(c1, c2))
+  //             {
+  //               var dist = ptDist( c1, c2 );
+  //               if ( nbrs.length < subgraphSize )
+  //                 {
+  //                   nbrs.push( { circle: c2, distance: dist } );
+  //                   c2nbrs.push( { circle: c1, distance: dist } );
+  //                 }
+  //               else
+  //                 {
+  //                   var traversing = true;
+  //                   var i = 0;
+  //                   while (traversing && i < subgraphSize)
+  //                     {
+  //                       if (dist < nbrs[i].distance)
+  //                         {
+  //                           var old = nbrs[i];
+  //                           nbrs[i] = {circle:c2, distance:dist};
+  //                           c2nbrs.push( {circle: c1, distance: dist} );
+  //                           traversing = false;
+  //                           topology[old.circle] =
+  //                             topology[old.circle].filter( c -> c.circle != c1);
+  //                         }
+  //                       i += 1;
+  //                     }
+  //                 }
+  //             }
+  //         }
+  //     }
+  // }
+
+  function addTopology ()
+  {
+    topology = newTopology();
+    var components:Map<Circle,Circle> = new Map();
+
+    for (c1 in circles)
+      {
+        if (components[c1] == null)
+          components[c1] = c1;
+
+        var candidates = circles
+          .filter( c -> c.radius < c1.radius && !lineIntersectsPath(c, c1) );
+
+        candidates.sort( (a,b) -> Std.int(1000 * ptDist(a,c1)) - Std.int(1000 * ptDist(b, c1)));
+
+        for (c2 in candidates.slice(0, subgraphSize))
+          {
+            components[c2] = components[c1];
+            topology[c1].push({circle:c2, distance: ptDist(c2,c1)});
+          }
+      }
+
+    for (c in circles)
+      {
+        var candidates = circles
+          .filter( cand -> components[c] != components[cand]);
+
+        if (candidates.length > 0)
+          {
+            candidates.sort(
+                            (a,b) ->
+                            Std.int(1000 * ptDist(a,c)) - Std.int(1000 * ptDist(b, c))
+                            );
+            
+            var newConnect = candidates[0];
+            var dist = ptDist( c, newConnect );
+            topology[ c ].push( {circle:newConnect, distance: dist} );
+            var comp = components[c];
+
+            for ( z in components.keys() )
+              if ( components[z] == comp )
+                components[z] = components[newConnect];
+          }
+    }    
   }
 
   // circles are points
@@ -323,21 +382,20 @@ class Main extends Sprite
 
   function drawCircles()
   {
-    graphics.beginFill(0);
-    //graphics.lineStyle(1,0xff0000);
+    //graphics.beginFill(0);
+    graphics.lineStyle(1,0xff0000);
     for (c in circles) drawCircle(c);
   }
 
   function drawTopology()
   {
-    graphics.beginFill(0);
-    //graphics.lineStyle(1,0x0000ff);
+
+    graphics.lineStyle(1,0x0000ff);
     for (pt in topology.keys()) {
-      graphics.moveTo( pt.x, pt.y );      
       for (nbr in topology[pt]) {
-        graphics.lineTo( nbr.x, nbr.y );
+        graphics.moveTo( pt.x, pt.y );      
+        graphics.lineTo( nbr.circle.x, nbr.circle.y );
       }
-      graphics.lineTo(pt.x, pt.y);
     }
   }
 
@@ -371,7 +429,7 @@ class Main extends Sprite
     // graphics.lineTo(path[0].x, path[0].y);
 
     drawCircles();
-    //drawTopology();
+    drawTopology();
     //drawNearestNeighbors(4);
     
   }
@@ -479,66 +537,71 @@ class Main extends Sprite
   }
 
   var drift = {x: -0.5, y: 0.5};
-  
+
+  // function moveCircles ()
+  // {
+    
+  // }
+
   function moveCircles ()
   {
-    var circ0 = circles[0];
+    // var circ0 = circles[0];
 
-    var box = {
-    left: circ0.x - circ0.radius,
-    right: circ0.x + circ0.radius,
-    top: circ0.y - circ0.radius,
-    bottom: circ0.y + circ0.radius
-    };
+    // var box = {
+    // left: circ0.x - circ0.radius,
+    // right: circ0.x + circ0.radius,
+    // top: circ0.y - circ0.radius,
+    // bottom: circ0.y + circ0.radius
+    // };
 
-    var updateBox = (c:Circle) -> {
-      box.left = Math.min( box.left, c.x - c.radius);
-      box.right = Math.max( box.right, c.x + c.radius);
-      box.top = Math.min( box.top, c.y - c.radius);
-      box.bottom = Math.min( box.bottom , c.y + c.radius);
-    };
+    // var updateBox = (c:Circle) -> {
+    //   box.left = Math.min( box.left, c.x - c.radius);
+    //   box.right = Math.max( box.right, c.x + c.radius);
+    //   box.top = Math.min( box.top, c.y - c.radius);
+    //   box.bottom = Math.min( box.bottom , c.y + c.radius);
+    // };
     
-    var time = Timer.stamp();
-    var sint = Math.sin( time );
-    var cost = Math.cos( time );
+    // var time = Timer.stamp();
+    // var sint = Math.sin( time );
+    // var cost = Math.cos( time );
 
-    var newPositions = circles.map( c -> {
-        updateBox( c );
+    // var newPositions = circles.map( c -> {
+    //     updateBox( c );
 
-        var newPos:Pt = { x:c.x, y:c.y };
-        var nbrs = topology[c];
+    //     var newPos:Pt = { x:c.x, y:c.y };
+    //     var nbrs = topology[c];
 
-        newPos.x += ( drift.x * Math.cos( c.x / time) );
-        newPos.y += ( drift.y * Math.sin( c.y / time) );
+    //     newPos.x += ( drift.x * Math.cos( c.x / time) );
+    //     newPos.y += ( drift.y * Math.sin( c.y / time) );
 
-        for (n in nbrs) 
-          if (n.radius < c.radius) {
-            newPos.x += Math.cos( n.x / time);
-            newPos.y += Math.sin( n.y / time);
-          }
+    //     for (n in nbrs) 
+    //       if (n.radius < c.radius) {
+    //         newPos.x += Math.cos( n.x / time);
+    //         newPos.y += Math.sin( n.y / time);
+    //       }
 
-        return newPos;
-      });
+    //     return newPos;
+    //   });
 
-    if (box.left <= 0 || box.right >= stage.stageWidth)
-      drift.x *= -1;
-    if (box.top <= 0 || box.bottom >= stage.stageHeight)
-      drift.y *= -1;
+    // if (box.left <= 0 || box.right >= stage.stageWidth)
+    //   drift.x *= -1;
+    // if (box.top <= 0 || box.bottom >= stage.stageHeight)
+    //   drift.y *= -1;
     
-    for (i in 0...circles.length) {
-      circles[i].x = newPositions[i].x;
-      circles[i].y = newPositions[i].y;
-    }
+    // for (i in 0...circles.length) {
+    //   circles[i].x = newPositions[i].x;
+    //   circles[i].y = newPositions[i].y;
+    // }
     
   }
 
   function perFrame (e)
   {
-    if (animating)
-      {
-        moveCircles();
-        render();
-      }
+    // if (animating)
+    //   {
+    //     moveCircles();
+    //     render();
+    //   }
   }
 
   static function ptDist(p1:Pt,p2:Pt) : Float
