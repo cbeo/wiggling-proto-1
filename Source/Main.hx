@@ -3,6 +3,7 @@ package;
 import openfl.display.Sprite;
 import openfl.events.MouseEvent;
 import openfl.events.KeyboardEvent;
+import openfl.events.Event;
 import openfl.ui.Keyboard;
 import haxe.Timer;
 import haxe.ds.Option;
@@ -24,6 +25,7 @@ class Main extends Sprite
 
   var drawing = false;
   var timestamp:Float;
+  var animating = false;
 
   var circleTrials = 10000;
 
@@ -32,11 +34,11 @@ class Main extends Sprite
 
   var path:Array<Pt>;
 
-  var radiiSizes = 8;
-  var radiusGradient = 5.0;
+  var radiiSizes = 6;
+  var radiusGradient = 4.0;
   var circles:Array<Circle> = [];
 
-  var subgraphSize = 4;
+  var subgraphSize = 3;
   var topology:Map<Pt,Array<Circle>> = new Map();
   
   public function new()
@@ -45,6 +47,7 @@ class Main extends Sprite
     stage.addEventListener( MouseEvent.MOUSE_DOWN, onMouseDown);
     stage.addEventListener( MouseEvent.MOUSE_UP, onMouseUp);
     stage.addEventListener( MouseEvent.MOUSE_MOVE, onMouseMove);
+    stage.addEventListener( Event.ENTER_FRAME, perFrame);
   }
 
   function addCircles()
@@ -299,6 +302,7 @@ class Main extends Sprite
   function onMouseDown (e)
   {
     drawing = true;
+    animating = false;
     timestamp = Timer.stamp();
     path = [ {x:e.localX, y:e.localY} ];
 
@@ -367,7 +371,7 @@ class Main extends Sprite
     // graphics.lineTo(path[0].x, path[0].y);
 
     drawCircles();
-    drawTopology();
+    //drawTopology();
     //drawNearestNeighbors(4);
     
   }
@@ -459,6 +463,9 @@ class Main extends Sprite
           trace('circle sizes = $sizes');
 
           trace('');
+          
+          animating = true;
+
           return; // exiting early.. a little ugly.
           
         case None: {}
@@ -469,6 +476,69 @@ class Main extends Sprite
       graphics.lineTo( e.localX, e.localY );
     }
     
+  }
+
+  var drift = {x: -0.5, y: 0.5};
+  
+  function moveCircles ()
+  {
+    var circ0 = circles[0];
+
+    var box = {
+    left: circ0.x - circ0.radius,
+    right: circ0.x + circ0.radius,
+    top: circ0.y - circ0.radius,
+    bottom: circ0.y + circ0.radius
+    };
+
+    var updateBox = (c:Circle) -> {
+      box.left = Math.min( box.left, c.x - c.radius);
+      box.right = Math.max( box.right, c.x + c.radius);
+      box.top = Math.min( box.top, c.y - c.radius);
+      box.bottom = Math.min( box.bottom , c.y + c.radius);
+    };
+    
+    var time = Timer.stamp();
+    var sint = Math.sin( time );
+    var cost = Math.cos( time );
+
+    var newPositions = circles.map( c -> {
+        updateBox( c );
+
+        var newPos:Pt = { x:c.x, y:c.y };
+        var nbrs = topology[c];
+
+        newPos.x += ( drift.x * Math.cos( c.x / time) );
+        newPos.y += ( drift.y * Math.sin( c.y / time) );
+
+        for (n in nbrs) 
+          if (n.radius < c.radius) {
+            newPos.x += Math.cos( n.x / time);
+            newPos.y += Math.sin( n.y / time);
+          }
+
+        return newPos;
+      });
+
+    if (box.left <= 0 || box.right >= stage.stageWidth)
+      drift.x *= -1;
+    if (box.top <= 0 || box.bottom >= stage.stageHeight)
+      drift.y *= -1;
+    
+    for (i in 0...circles.length) {
+      circles[i].x = newPositions[i].x;
+      circles[i].y = newPositions[i].y;
+    }
+    
+  }
+
+  function perFrame (e)
+  {
+    if (animating)
+      {
+        moveCircles();
+        render();
+      }
   }
 
   static function ptDist(p1:Pt,p2:Pt) : Float
