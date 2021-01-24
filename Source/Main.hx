@@ -135,12 +135,12 @@ class Main extends Sprite
   function addTopology ()
   {
     topology = newTopology();
-    var components:Map<Circle,Circle> = new Map();
+    var component:Map<Circle,Circle> = new Map();
 
     for (c1 in circles)
       {
-        if (components[c1] == null)
-          components[c1] = c1;
+        if (component[c1] == null)
+          component[c1] = c1;
 
         var candidates = circles
           .filter( c -> c.radius < c1.radius && !lineIntersectsPath(c, c1) );
@@ -149,33 +149,40 @@ class Main extends Sprite
 
         for (c2 in candidates.slice(0, subgraphSize))
           {
-            components[c2] = components[c1];
+            component[c2] = component[c1];
             topology[c1].push({circle:c2, distance: ptDist(c2,c1)});
           }
       }
 
+
     for (c in circles)
       {
+        // for each component, find the circle in a different component
+        // nearest to one of the members of the component.
+
+        var comp = component[c];
         var candidates = circles
-          .filter( cand -> components[c] != components[cand]);
+          .filter( cand ->
+                   comp != component[cand] &&
+                   !lineIntersectsPath(c, cand)
+                   );
 
-        if (candidates.length > 0)
-          {
-            candidates.sort(
-                            (a,b) ->
-                            Std.int(1000 * ptDist(a,c)) - Std.int(1000 * ptDist(b, c))
-                            );
-            
-            var newConnect = candidates[0];
-            var dist = ptDist( c, newConnect );
-            topology[ c ].push( {circle:newConnect, distance: dist} );
-            var comp = components[c];
+        candidates.sort(
+                        (a,b) ->
+                        Std.int(1000 * ptDist(a,c)) - Std.int(1000 * ptDist(b, c))
+                        );
 
-            for ( z in components.keys() )
-              if ( components[z] == comp )
-                components[z] = components[newConnect];
-          }
-    }    
+        if (candidates.length > 0) {
+          var nearest = candidates[0];
+          var nearestComp = component[nearest];
+
+          // for (circ in component.keys())
+          //   if (component[circ] == comp)
+          //     component[circ] = nearestComp;
+
+          topology[nearest].push({circle: c, distance: ptDist(c,nearest)});
+        }
+      }
   }
 
   // circles are points
