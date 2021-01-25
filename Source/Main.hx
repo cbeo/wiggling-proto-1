@@ -20,7 +20,7 @@ enum Line {
   Sloped(slop:Float,yIntercept:Float);
 }
 
-typedef Circle = Pt & {radius:Float};
+typedef Circle = Pt & {radius:Float, ?vx:Float, ?vy:Float, ?color:Int};
 typedef Neighbor = {circle:Circle, distance:Float};
 
 
@@ -317,7 +317,10 @@ class Main extends Sprite
   {
     var cx = (Math.random() * bbox.width) + bbox.x;
     var cy = (Math.random() * bbox.height) + bbox.y;
-    return {radius:rad, x: cx, y:cy};
+    var vx = Math.random() * (if (Math.random() > 0.5) 1 else -1);
+    var vy = Math.random() * (if (Math.random() > 0.5) 1 else -1);
+    var color = Std.int( Math.random() * 0xFFFFFF);
+    return {radius:rad, x: cx, y:cy, vx:vx, vy:vy, color:color};
   }
   
   static function circlesIntersect(c1:Circle,c2:Circle):Bool
@@ -382,13 +385,14 @@ class Main extends Sprite
 
   function drawCircle(c:Circle)
   {
+    graphics.beginFill( c.color );
     graphics.drawCircle( c.x, c.y, c.radius );
   }
 
   function drawCircles()
   {
     //graphics.beginFill(0);
-    graphics.lineStyle(1,0xff0000);
+    //graphics.lineStyle(1,0xff0000);
     for (c in circles) drawCircle(c);
   }
 
@@ -434,7 +438,7 @@ class Main extends Sprite
     // graphics.lineTo(path[0].x, path[0].y);
 
     drawCircles();
-    drawTopology();
+    //drawTopology();
     //drawNearestNeighbors(4);
     
   }
@@ -602,11 +606,11 @@ class Main extends Sprite
 
   function perFrame (e)
   {
-    // if (animating)
-    //   {
-    //     moveCircles();
-    //     render();
-    //   }
+    if (animating)
+      {
+        moveCircles();
+        render();
+      }
   }
 
   static function ptDist(p1:Pt,p2:Pt) : Float
