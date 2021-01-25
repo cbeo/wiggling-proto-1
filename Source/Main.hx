@@ -39,19 +39,25 @@ class Main extends Sprite
   var path:Array<Pt>;
 
   var radiiSizes = 6;
-  var radiusGradient = 4.0;
+  var radiusGradient = 6.0;
   var circles:Array<Circle> = [];
+  var neighborRadius : Float;
 
-  var subgraphSize = 2;
-  var topology:Map<Pt,Array<Neighbor>> = new Map();
+  var minSubgraphSize = 1;
+  var maxSubgraphSize = 3;
+  var topology:Map<Circle,Array<Neighbor>> = new Map();
   
   public function new()
   {
     super();
+    neighborRadius = radiiSizes * radiusGradient * 1.6;
+
     stage.addEventListener( MouseEvent.MOUSE_DOWN, onMouseDown);
     stage.addEventListener( MouseEvent.MOUSE_UP, onMouseUp);
     stage.addEventListener( MouseEvent.MOUSE_MOVE, onMouseMove);
     stage.addEventListener( Event.ENTER_FRAME, perFrame);
+
+
   }
 
   function addCircles()
@@ -83,107 +89,99 @@ class Main extends Sprite
 
   function newTopology ()
   {
-    var top:Map<Pt,Array<Neighbor>> = new Map();
+    var top:Map<Circle,Array<Neighbor>> = new Map();
     for (c in circles)
       top[c] = [];
     return top;
   }
 
-  // function addTopology()
+
+  // function areConnected (a:Circle,b:Circle):Bool
   // {
-  //   topology = newTopology();
-  //   for (c1 in circles)
+  //   var visted : Map<Circle,Bool> = [for (c in circles) c => false];
+  //   var frontier : Array<Neighbor> = topology[a].copy();
+  //   for (nbr in frontier) visted[nbr.circle] = true;
+
+  //   while (frontier.length > 0)
   //     {
-  //       var nbrs = topology[c1];
-  //       for (c2 in circles)
-  //         {
-  //           var c2nbrs = topology[ c2 ];
-  //           if (c1 != c2 &&
-  //               c2nbrs.length < subgraphSize && 
-  //               !isNeighbor(c1, c2) &&
-  //               !lineIntersectsPath(c1, c2))
-  //             {
-  //               var dist = ptDist( c1, c2 );
-  //               if ( nbrs.length < subgraphSize )
-  //                 {
-  //                   nbrs.push( { circle: c2, distance: dist } );
-  //                   c2nbrs.push( { circle: c1, distance: dist } );
-  //                 }
-  //               else
-  //                 {
-  //                   var traversing = true;
-  //                   var i = 0;
-  //                   while (traversing && i < subgraphSize)
-  //                     {
-  //                       if (dist < nbrs[i].distance)
-  //                         {
-  //                           var old = nbrs[i];
-  //                           nbrs[i] = {circle:c2, distance:dist};
-  //                           c2nbrs.push( {circle: c1, distance: dist} );
-  //                           traversing = false;
-  //                           topology[old.circle] =
-  //                             topology[old.circle].filter( c -> c.circle != c1);
-  //                         }
-  //                       i += 1;
-  //                     }
-  //                 }
-  //             }
-  //         }
+  //       var candidate = frontier.pop();
+  //       if (candidate.circle == b) return true;
+  //       for (nbr in topology[candidate.circle])
+  //         if (!visted[nbr.circle])
+  //           {
+  //             visted[nbr.circle] = true;
+  //             frontier.push( nbr );
+  //           }            
   //     }
+  //   return false;
   // }
 
+  // function connectedComponents () 
+  // {
+  //   var connectionLookup
+
+  //   var connectionMatrix =
+  //     [for (i in 0...circles.length)
+  //         [for (j in 0...circles.length)
+  //             areConnected( circles[i], circles[j])
+  //          ]
+  //      ];
+
+    
+    
+    
+  // }
+
+  
   function addTopology ()
   {
     topology = newTopology();
-    var component:Map<Circle,Circle> = new Map();
+    var component:Map<Circle,Circle> = [for (c in circles) c => c];
 
+    var lookupComponent = (a:Circle) -> {
+      var comp = component[a];
+      while (comp != component[comp])
+        comp = component[comp];
+      return comp;
+    };
+      
+    var areConnected = (a:Circle,b:Circle) ->
+      lookupComponent(a) == lookupComponent(b);
+
+    var isNeighbor = (a:Circle, b:Circle) ->
+      topology[a].exists( node -> node.circle == b );
+    
+    var areNeighbors = (a:Circle,b:Circle) ->
+      isNeighbor(a,b) || isNeighbor(b, a);
+    
+    var needsNeighbor = (a:Circle) ->
+      topology[a].length < minSubgraphSize;
+
+    // var roomForNeighbor = (a:Circle) ->
+    //   topology[a].length <= maxSubgraphSize;
+    
+    var validNeighbor = (a:Circle,b:Circle) -> 
+      return a != b &&
+      // (roomForNeighbor(a) && roomForNeighbor(b)  ||
+      //  needsNeighbor(a) || needsNeighbor(b)) &&
+      !areNeighbors( a, b ) &&
+      ptDist(a,b) < neighborRadius &&
+      !lineIntersectsPath(a, b);
+
+    var connect = (a:Circle , b:Circle) -> {
+      component[b] = component[a];
+      return topology[a].push({circle:b, distance: ptDist(a,b)});
+    }
+
+    
     for (c1 in circles)
-      {
-        if (component[c1] == null)
-          component[c1] = c1;
-
-        var candidates = circles
-          .filter( c -> c.radius < c1.radius && !lineIntersectsPath(c, c1) );
-
-        candidates.sort( (a,b) -> Std.int(1000 * ptDist(a,c1)) - Std.int(1000 * ptDist(b, c1)));
-
-        for (c2 in candidates.slice(0, subgraphSize))
-          {
-            component[c2] = component[c1];
-            topology[c1].push({circle:c2, distance: ptDist(c2,c1)});
-          }
-      }
+      for (c2 in circles)
+        if ( validNeighbor( c1, c2 ) )
+          connect(c1,c2);
 
 
-    for (c in circles)
-      {
-        // for each component, find the circle in a different component
-        // nearest to one of the members of the component.
-
-        var comp = component[c];
-        var candidates = circles
-          .filter( cand ->
-                   comp != component[cand] &&
-                   !lineIntersectsPath(c, cand)
-                   );
-
-        candidates.sort(
-                        (a,b) ->
-                        Std.int(1000 * ptDist(a,c)) - Std.int(1000 * ptDist(b, c))
-                        );
-
-        if (candidates.length > 0) {
-          var nearest = candidates[0];
-          var nearestComp = component[nearest];
-
-          // for (circ in component.keys())
-          //   if (component[circ] == comp)
-          //     component[circ] = nearestComp;
-
-          topology[nearest].push({circle: c, distance: ptDist(c,nearest)});
-        }
-      }
   }
+
 
   // circles are points
   function nearestValidNeighbors(center:Pt, n:Int):Array<Pt>
