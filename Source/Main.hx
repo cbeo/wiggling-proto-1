@@ -4,8 +4,9 @@ import openfl.display.Sprite;
 import openfl.events.MouseEvent;
 import openfl.events.KeyboardEvent;
 import openfl.events.Event;
+import openfl.events.TimerEvent;
 import openfl.ui.Keyboard;
-import haxe.Timer;
+import openfl.utils.Timer;
 import haxe.ds.Option;
 
 using Lambda;
@@ -46,6 +47,9 @@ class Main extends Sprite
   var minSubgraphSize = 1;
   var maxSubgraphSize = 3;
   var topology:Map<Circle,Array<Neighbor>> = new Map();
+
+  var framePause = 1.0 / 4;
+  var animTimer : Timer;
   
   public function new()
   {
@@ -55,9 +59,9 @@ class Main extends Sprite
     stage.addEventListener( MouseEvent.MOUSE_DOWN, onMouseDown);
     stage.addEventListener( MouseEvent.MOUSE_UP, onMouseUp);
     stage.addEventListener( MouseEvent.MOUSE_MOVE, onMouseMove);
-    stage.addEventListener( Event.ENTER_FRAME, perFrame);
-
-
+    //stage.addEventListener( Event.ENTER_FRAME, perFrame);
+    animTimer = new Timer( framePause );
+    animTimer.addEventListener( TimerEvent.TIMER, perFrame);
   }
 
   function addCircles()
@@ -75,9 +79,6 @@ class Main extends Sprite
           rad -= radiusGradient;
         }
       }
-
-    // for (pt in path)
-    //   circles.push({x:pt.x, y:pt.y, radius:2});
   }
 
 
@@ -94,59 +95,10 @@ class Main extends Sprite
       top[c] = [];
     return top;
   }
-
-
-  // function areConnected (a:Circle,b:Circle):Bool
-  // {
-  //   var visted : Map<Circle,Bool> = [for (c in circles) c => false];
-  //   var frontier : Array<Neighbor> = topology[a].copy();
-  //   for (nbr in frontier) visted[nbr.circle] = true;
-
-  //   while (frontier.length > 0)
-  //     {
-  //       var candidate = frontier.pop();
-  //       if (candidate.circle == b) return true;
-  //       for (nbr in topology[candidate.circle])
-  //         if (!visted[nbr.circle])
-  //           {
-  //             visted[nbr.circle] = true;
-  //             frontier.push( nbr );
-  //           }            
-  //     }
-  //   return false;
-  // }
-
-  // function connectedComponents () 
-  // {
-  //   var connectionLookup
-
-  //   var connectionMatrix =
-  //     [for (i in 0...circles.length)
-  //         [for (j in 0...circles.length)
-  //             areConnected( circles[i], circles[j])
-  //          ]
-  //      ];
-
-    
-    
-    
-  // }
-
   
   function addTopology ()
   {
     topology = newTopology();
-    var component:Map<Circle,Circle> = [for (c in circles) c => c];
-
-    var lookupComponent = (a:Circle) -> {
-      var comp = component[a];
-      while (comp != component[comp])
-        comp = component[comp];
-      return comp;
-    };
-      
-    var areConnected = (a:Circle,b:Circle) ->
-      lookupComponent(a) == lookupComponent(b);
 
     var isNeighbor = (a:Circle, b:Circle) ->
       topology[a].exists( node -> node.circle == b );
@@ -157,29 +109,23 @@ class Main extends Sprite
     var needsNeighbor = (a:Circle) ->
       topology[a].length < minSubgraphSize;
 
-    // var roomForNeighbor = (a:Circle) ->
-    //   topology[a].length <= maxSubgraphSize;
-    
     var validNeighbor = (a:Circle,b:Circle) -> 
       return a != b &&
-      // (roomForNeighbor(a) && roomForNeighbor(b)  ||
-      //  needsNeighbor(a) || needsNeighbor(b)) &&
       !areNeighbors( a, b ) &&
       ptDist(a,b) < neighborRadius &&
       !lineIntersectsPath(a, b);
 
     var connect = (a:Circle , b:Circle) -> {
-      component[b] = component[a];
-      return topology[a].push({circle:b, distance: ptDist(a,b)});
+      //component[b] = component[a];
+      var dist = ptDist(a,b);
+      topology[b].push({circle:a, distance: dist});
+      topology[a].push({circle:b, distance: dist});
     }
-
     
     for (c1 in circles)
       for (c2 in circles)
         if ( validNeighbor( c1, c2 ) )
           connect(c1,c2);
-
-
   }
 
 
@@ -369,8 +315,9 @@ class Main extends Sprite
   function onMouseDown (e)
   {
     drawing = true;
-    animating = false;
-    timestamp = Timer.stamp();
+    //animating = false;
+    if (animTimer.running) animTimer.stop();
+    timestamp = haxe.Timer.stamp();
     path = [ {x:e.localX, y:e.localY} ];
 
     graphics.clear();
@@ -391,14 +338,11 @@ class Main extends Sprite
 
   function drawCircles()
   {
-    //graphics.beginFill(0);
-    //graphics.lineStyle(1,0xff0000);
     for (c in circles) drawCircle(c);
   }
 
   function drawTopology()
   {
-
     graphics.lineStyle(1,0x0000ff);
     for (pt in topology.keys()) {
       for (nbr in topology[pt]) {
@@ -408,39 +352,10 @@ class Main extends Sprite
     }
   }
 
-  function drawNearestNeighbors(n:Int)
-  {
-    graphics.lineStyle(2,0x0000ff);
-    for (c in circles)
-      for (nbr in nearestValidNeighbors(c, n)) {
-        graphics.moveTo(c.x,c.y);
-        graphics.lineTo(nbr.x,nbr.y);
-      }
-    // for (c in path)
-    //   for (nbr in nearestValidNeighbors(c, n)) {
-    //     graphics.moveTo(c.x,c.y);
-    //     graphics.lineTo(nbr.x,nbr.y);
-    //   }
-  }
-
   function render()
   {
     graphics.clear();
-
-    // graphics.moveTo( path[0].x,  path[0].y );
-
-    // for (i in 1...path.length) {
-    //   graphics.lineStyle(2, 0);
-    //   graphics.lineTo( path[i].x, path[i].y );
-    // }
-
-    // graphics.lineStyle(2, 0);
-    // graphics.lineTo(path[0].x, path[0].y);
-
     drawCircles();
-    //drawTopology();
-    //drawNearestNeighbors(4);
-    
   }
 
   function pathBoundingBox () : Rect
@@ -489,7 +404,7 @@ class Main extends Sprite
   
   function onMouseMove (e)
   {
-    var stamp = Timer.stamp();
+    var stamp = haxe.Timer.stamp();
     var pt = {x:e.localX, y:e.localY};
 
     if (drawing && (stamp - timestamp > sampleRate) && ptDist(pt, path[path.length-1]) >= sampleGap) {
@@ -500,12 +415,9 @@ class Main extends Sprite
           drawing = false;
           path = path.slice(i);
 
-          trace(firstAndLastOption);
           var firstAndLast = switch(firstAndLastOption)
             {case Some(pt):pt; default:path[0];};
 
-          trace( firstAndLast );
-          
           path[0] = firstAndLast;
 
           if (pathIsCounterClockwise())
@@ -513,25 +425,9 @@ class Main extends Sprite
 
           addCircles();
           addTopology();
-          render();
+          //render();
           
-          trace("path edge differences: ");
-          trace( pathEdgeDistances()) ;
-
-          trace('path.length = ${path.length}');
-          trace('circles.length = ${circles.length}');
-
-          var sizes = [];
-
-          for (c in circles)
-            if (!sizes.contains( c.radius ))
-              sizes.push( c.radius );
-
-          trace('circle sizes = $sizes');
-
-          trace('');
-          
-          animating = true;
+          animTimer.start();
 
           return; // exiting early.. a little ugly.
           
@@ -545,72 +441,58 @@ class Main extends Sprite
     
   }
 
-  var drift = {x: -0.5, y: 0.5};
 
-  // function moveCircles ()
-  // {
-    
-  // }
-
+  var driftTolerance = 0.08; // 8%
   function moveCircles ()
   {
-    // var circ0 = circles[0];
+    var stamp  = haxe.Timer.stamp();
+    var cosStamp = Math.cos( stamp);
+    var sinStamp = Math.sin(stamp);
+    for (c in circles)
+      {
+        for (nbr in topology[c])
+          {
+            var dist = ptDist(c, nbr.circle);
+            var dx = nbr.circle.x - c.x;
+            var dy = nbr.circle.y - c.y;
 
-    // var box = {
-    // left: circ0.x - circ0.radius,
-    // right: circ0.x + circ0.radius,
-    // top: circ0.y - circ0.radius,
-    // bottom: circ0.y + circ0.radius
-    // };
+            var radRatio = nbr.circle.radius / c.radius;
 
-    // var updateBox = (c:Circle) -> {
-    //   box.left = Math.min( box.left, c.x - c.radius);
-    //   box.right = Math.max( box.right, c.x + c.radius);
-    //   box.top = Math.min( box.top, c.y - c.radius);
-    //   box.bottom = Math.min( box.bottom , c.y + c.radius);
-    // };
-    
-    // var time = Timer.stamp();
-    // var sint = Math.sin( time );
-    // var cost = Math.cos( time );
+            //end of tether case
+            if ( Math.abs(dist - nbr.distance) / nbr.distance > driftTolerance
+                 && nbr.circle.radius <= c.radius)
+              {
+                if (Math.abs(dx) > Math.abs(dy))
+                  c.vx = (dx / (dist*dist)) * nbr.circle.vx * radRatio;
+                else
+                  c.vy = (dx / (dist*dist)) * nbr.circle.vy * radRatio;
+              }
+            else if (nbr.circle.radius > c.radius) // normal caase
+              {
+                c.vx += (dx / (dist*dist)) * Math.sqrt(nbr.circle.radius / c.radius);
+                c.vy += (dy / (dist*dist)) * Math.sqrt(nbr.circle.radius / c.radius);
+              }
+          }
 
-    // var newPositions = circles.map( c -> {
-    //     updateBox( c );
+        if (c.x >= stage.stageWidth || c.x <= 0)
+          c.vx *= -1;
 
-    //     var newPos:Pt = { x:c.x, y:c.y };
-    //     var nbrs = topology[c];
+        if (c.y >= stage.stageHeight || c.y <= 0)
+          c.vy *= -1;
 
-    //     newPos.x += ( drift.x * Math.cos( c.x / time) );
-    //     newPos.y += ( drift.y * Math.sin( c.y / time) );
+        c.x = Math.max( 0, Math.min( stage.stageWidth,  c.x ));
+        c.y = Math.max( 0, Math.min( stage.stageHeight, c.y ));
 
-    //     for (n in nbrs) 
-    //       if (n.radius < c.radius) {
-    //         newPos.x += Math.cos( n.x / time);
-    //         newPos.y += Math.sin( n.y / time);
-    //       }
-
-    //     return newPos;
-    //   });
-
-    // if (box.left <= 0 || box.right >= stage.stageWidth)
-    //   drift.x *= -1;
-    // if (box.top <= 0 || box.bottom >= stage.stageHeight)
-    //   drift.y *= -1;
-    
-    // for (i in 0...circles.length) {
-    //   circles[i].x = newPositions[i].x;
-    //   circles[i].y = newPositions[i].y;
-    // }
-    
+        c.x += c.vx + cosStamp * c.x / stage.stageWidth;
+        c.y += c.vy + sinStamp * c.y / stage.stageHeight;
+      }
   }
+
 
   function perFrame (e)
   {
-    if (animating)
-      {
-        moveCircles();
-        render();
-      }
+    moveCircles();
+    render();
   }
 
   static function ptDist(p1:Pt,p2:Pt) : Float
@@ -649,7 +531,6 @@ class Main extends Sprite
     var line1 = lineOfSegment(a,b);
     var line2 = lineOfSegment(c,d);
 
-    trace([line1, line2]);
     switch ([line1, line2])
       {
       case [Sloped(m1,b1), Sloped(m2,b2)]:
