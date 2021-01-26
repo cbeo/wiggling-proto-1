@@ -39,13 +39,14 @@ class Main extends Sprite
 
   var path:Array<Pt>;
 
-  var radiiSizes = 4;
-  var radiusGradient = 4.0;
+  var radiiSizes = 10;
+  var radiusGradient = 3.0;
   var circles:Array<Circle> = [];
   var neighborRadius : Float;
+  var driftTolerance = 0.05; // 8%
 
-  var minSubgraphSize = 1;
-  var maxSubgraphSize = 3;
+  //  var minSubgraphSize = 1;
+  //var maxSubgraphSize = 3;
   var topology:Map<Circle,Array<Neighbor>> = new Map();
   var nearestCircle:Map<Pt,{circle:Circle, dx:Float,dy:Float}> = new Map();
 
@@ -55,7 +56,7 @@ class Main extends Sprite
   public function new()
   {
     super();
-    neighborRadius = radiiSizes * radiusGradient * 2;
+    neighborRadius = radiiSizes * radiusGradient * 1.5;
 
     stage.addEventListener( MouseEvent.MOUSE_DOWN, onMouseDown);
     stage.addEventListener( MouseEvent.MOUSE_UP, onMouseUp);
@@ -468,7 +469,7 @@ class Main extends Sprite
     first.x = nearest.circle.x + nearest.dx;
     first.y = nearest.circle.y + nearest.dy;
 
-    graphics.beginFill(0);
+    graphics.beginFill(0x999999);
     graphics.moveTo(first.x, first.y);
 
     for (pt in path.slice(1))
@@ -484,7 +485,7 @@ class Main extends Sprite
   }
 
 
-  var driftTolerance = 0.08; // 8%
+
   function moveCircles ()
   {
     var stamp  = haxe.Timer.stamp();
@@ -502,7 +503,7 @@ class Main extends Sprite
 
             //end of tether case
             if ( Math.abs(dist - nbr.distance) / nbr.distance > driftTolerance
-                 && nbr.circle.radius <= c.radius)
+                 && nbr.circle.radius <= c.radius || circlesIntersect(c, nbr.circle))
               {
                 if (Math.abs(dx) > Math.abs(dy))
                   c.vx = (dx / (dist*dist)) * nbr.circle.vx * radRatio;
