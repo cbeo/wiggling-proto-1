@@ -47,6 +47,7 @@ class Main extends Sprite
   var minSubgraphSize = 1;
   var maxSubgraphSize = 3;
   var topology:Map<Circle,Array<Neighbor>> = new Map();
+  var nearestCircle:Map<Pt,{circle:Circle, dx:Float,dy:Float}> = new Map();
 
   var framePause = 1.0 / 4;
   var animTimer : Timer;
@@ -62,6 +63,17 @@ class Main extends Sprite
     //stage.addEventListener( Event.ENTER_FRAME, perFrame);
     animTimer = new Timer( framePause );
     animTimer.addEventListener( TimerEvent.TIMER, perFrame);
+  }
+
+  function addNearestCircles()
+  {
+    nearestCircle = new Map();
+    for (pt in path)
+      {
+        var circs = circles.copy();
+        circs.sort( (a,b) -> Std.int(ptDist(a,pt) - ptDist(b,pt)));
+        nearestCircle[pt] = {circle: circs[0], dx: pt.x - circs[0].x, dy: pt.y - circs[0].y};
+      }
   }
 
   function addCircles()
@@ -344,21 +356,27 @@ class Main extends Sprite
 
   function drawTopology()
   {
-    graphics.lineStyle(1,0x0000ff);
+    //graphics.lineStyle(1,0);
+    graphics.beginFill(0);
     for (pt in topology.keys()) {
+      graphics.moveTo( pt.x, pt.y );      
       for (nbr in topology[pt]) {
-        graphics.moveTo( pt.x, pt.y );      
         graphics.lineTo( nbr.circle.x, nbr.circle.y );
       }
+      graphics.lineTo( pt.x , pt.y);
     }
   }
 
   function render()
   {
     graphics.clear();
-    drawCircles();
+    adjustPathAndDraw();
+    //drawCircles();
+    //drawTopology();
+
   }
 
+  
   function pathBoundingBox () : Rect
   {
     if (path.length == 0)
@@ -426,6 +444,7 @@ class Main extends Sprite
 
           addCircles();
           addTopology();
+          addNearestCircles();
           //render();
           
           animTimer.start();
@@ -440,6 +459,28 @@ class Main extends Sprite
       graphics.lineTo( e.localX, e.localY );
     }
     
+  }
+
+  function adjustPathAndDraw ()
+  {
+    var first = path[0];
+    var nearest = nearestCircle[first];
+    first.x = nearest.circle.x + nearest.dx;
+    first.y = nearest.circle.y + nearest.dy;
+
+    graphics.beginFill(0);
+    graphics.moveTo(first.x, first.y);
+
+    for (pt in path.slice(1))
+      {
+        nearest = nearestCircle[pt];
+        pt.x = nearest.circle.x + nearest.dx; // not really needed
+        pt.y = nearest.circle.y + nearest.dy; // not really needed
+        //graphics.lineTo( pt.x, pt.y);
+        graphics.curveTo(pt.x, pt.y, nearest.circle.x, nearest.circle.y);
+      }
+
+    graphics.lineTo(first.x, first.y);
   }
 
 
@@ -556,3 +597,4 @@ class Main extends Sprite
   }
 
 }
+
