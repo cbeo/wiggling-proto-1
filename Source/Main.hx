@@ -493,6 +493,8 @@ class Main extends Sprite
     var sinStamp = Math.sin(stamp);
     for (c in circles)
       {
+        var vx = 0.0;
+        var vy = 0.0;
         for (nbr in topology[c])
           {
             var dist = ptDist(c, nbr.circle);
@@ -506,28 +508,31 @@ class Main extends Sprite
                  && nbr.circle.radius <= c.radius || circlesIntersect(c, nbr.circle))
               {
                 if (Math.abs(dx) > Math.abs(dy))
-                  c.vx = (dx / (dist*dist)) * nbr.circle.vx * radRatio;
+                  vx += (dx / (dist*dist)) * nbr.circle.vx * radRatio;
                 else
-                  c.vy = (dx / (dist*dist)) * nbr.circle.vy * radRatio;
+                  vy += (dx / (dist*dist)) * nbr.circle.vy * radRatio;
               }
             else if (nbr.circle.radius > c.radius) // normal caase
               {
-                c.vx += (dx / (dist*dist)) * Math.sqrt(nbr.circle.radius / c.radius);
-                c.vy += (dy / (dist*dist)) * Math.sqrt(nbr.circle.radius / c.radius);
+                vx += (dx / (dist*dist)) * Math.sqrt(nbr.circle.radius / c.radius);
+                vy += (dy / (dist*dist)) * Math.sqrt(nbr.circle.radius / c.radius);
               }
           }
 
         if (c.x >= stage.stageWidth || c.x <= 0)
-          c.vx *= -1;
+          vx *= -1;
 
         if (c.y >= stage.stageHeight || c.y <= 0)
-          c.vy *= -1;
+          vy *= -1;
 
-        c.x = Math.max( 0, Math.min( stage.stageWidth,  c.x ));
-        c.y = Math.max( 0, Math.min( stage.stageHeight, c.y ));
+        c.vx = vx / topology[c].length;
+        c.vy = vy / topology[c].length;
 
         c.x += c.vx + cosStamp * c.x / stage.stageWidth;
         c.y += c.vy + sinStamp * c.y / stage.stageHeight;
+
+        c.x = Math.max( 0, Math.min( stage.stageWidth,  c.x ));
+        c.y = Math.max( 0, Math.min( stage.stageHeight, c.y ));
       }
   }
 
