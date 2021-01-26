@@ -30,7 +30,7 @@ class Main extends Sprite
 
   var drawing = false;
   var timestamp:Float;
-  var animating = false;
+  //  var animating = false;
 
   var circleTrials = 10000;
 
@@ -39,8 +39,8 @@ class Main extends Sprite
 
   var path:Array<Pt>;
 
-  var radiiSizes = 6;
-  var radiusGradient = 6.0;
+  var radiiSizes = 4;
+  var radiusGradient = 4.0;
   var circles:Array<Circle> = [];
   var neighborRadius : Float;
 
@@ -55,7 +55,7 @@ class Main extends Sprite
   public function new()
   {
     super();
-    neighborRadius = radiiSizes * radiusGradient * 1.6;
+    neighborRadius = radiiSizes * radiusGradient * 2;
 
     stage.addEventListener( MouseEvent.MOUSE_DOWN, onMouseDown);
     stage.addEventListener( MouseEvent.MOUSE_UP, onMouseUp);
@@ -118,8 +118,8 @@ class Main extends Sprite
     var areNeighbors = (a:Circle,b:Circle) ->
       isNeighbor(a,b) || isNeighbor(b, a);
     
-    var needsNeighbor = (a:Circle) ->
-      topology[a].length < minSubgraphSize;
+    // var needsNeighbor = (a:Circle) ->
+    //   topology[a].length < minSubgraphSize;
 
     var validNeighbor = (a:Circle,b:Circle) -> 
       return a != b &&
@@ -344,8 +344,8 @@ class Main extends Sprite
 
   function drawCircle(c:Circle)
   {
-    //graphics.beginFill( c.color );
-    graphics.beginFill( 0);
+    graphics.beginFill( c.color , 0.3);
+    //graphics.beginFill( 0);
     graphics.drawCircle( c.x, c.y, c.radius );
   }
 
@@ -371,7 +371,7 @@ class Main extends Sprite
   {
     graphics.clear();
     adjustPathAndDraw();
-    //drawCircles();
+    drawCircles();
     //drawTopology();
 
   }
@@ -476,8 +476,8 @@ class Main extends Sprite
         nearest = nearestCircle[pt];
         pt.x = nearest.circle.x + nearest.dx; // not really needed
         pt.y = nearest.circle.y + nearest.dy; // not really needed
-        //graphics.lineTo( pt.x, pt.y);
-        graphics.curveTo(pt.x, pt.y, nearest.circle.x, nearest.circle.y);
+        graphics.lineTo( pt.x, pt.y);
+        //graphics.curveTo(pt.x, pt.y, nearest.circle.x, nearest.circle.y);
       }
 
     graphics.lineTo(first.x, first.y);
