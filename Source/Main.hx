@@ -332,7 +332,8 @@ class Main extends Sprite
 
   function drawCircle(c:Circle)
   {
-    graphics.beginFill( c.color );
+    //graphics.beginFill( c.color );
+    graphics.beginFill( 0);
     graphics.drawCircle( c.x, c.y, c.radius );
   }
 
