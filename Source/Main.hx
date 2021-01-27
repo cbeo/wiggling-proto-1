@@ -633,13 +633,12 @@ class Main extends Sprite
       }
   }
 
-  static function cointoss (): Int
-  {
-    return if (Math.random() >= 0.5) 1 else -1;
-  }
+  function moveJoints() {}
+
 
   function perFrame (e)
   {
+    moveJoints();
     moveCircles();
     render();
   }
