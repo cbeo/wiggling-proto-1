@@ -45,7 +45,7 @@ class Main extends Sprite
   var neighborRadius : Float;
   var driftTolerance = 0.5; // 8%
 
-  var dontDrawLargerThan = 200;
+  var dontDrawLargerThan = 20;
 
   //  var minSubgraphSize = 1;
   //var maxSubgraphSize = 3;
@@ -480,54 +480,18 @@ class Main extends Sprite
     var sinStamp = Math.sin(stamp);
     for (c in circles)
       {
-        var vx = 0.0;
-        var vy = 0.0;
-        for (nbr in topology[c])
-          {
-            var dist = ptDist(c, nbr.circle);
-            var dx = nbr.circle.x - c.x;
-            var dy = nbr.circle.y - c.y;
-
-            var radRatio = nbr.circle.radius / c.radius;
-
-            //end of tether case
-            if ( Math.abs(dist - nbr.distance) / nbr.distance > driftTolerance)
-                 // || circlesIntersect(c, nbr.circle))
-              {
-                vx += nbr.circle.vx / dx * radRatio;
-                vy += nbr.circle.vy / dy * radRatio;
-              }
-            else 
-              {
-                vx += c.vx; // will average out later
-                vy += c.vy;
-              }
-            // else if (nbr.circle.radius > c.radius) // normal caase
-            //   {
-            //     vx += (dx / (dist));// * Math.sqrt(nbr.circle.radius / c.radius);
-            //     vy += (dy / (dist));// * Math.sqrt(nbr.circle.radius / c.radius);
-            //   }
-          }
-
-
-        c.vx = (c.vx + vx) / (topology[c].length + 1);
-        c.vy = (c.vy + vy) / (topology[c].length + 1);
-
-        if (c.x >= stage.stageWidth || c.x <= 0)
-          c.vx *= -1;
-
-        if (c.y >= stage.stageHeight || c.y <= 0)
-          c.vy *= -1;
-
-
-        c.x += c.vx ;// + cosStamp * c.x / stage.stageWidth;
-        c.y += c.vy ; // + sinStamp * c.y / stage.stageHeight;
+        c.x += cosStamp * c.x / stage.stageWidth;
+        c.y += sinStamp * c.y / stage.stageHeight;
 
         c.x = Math.max( 0, Math.min( stage.stageWidth,  c.x ));
         c.y = Math.max( 0, Math.min( stage.stageHeight, c.y ));
       }
   }
 
+  static function cointoss (): Int
+  {
+    return if (Math.random() >= 0.5) 1 else -1;
+  }
 
   function perFrame (e)
   {
