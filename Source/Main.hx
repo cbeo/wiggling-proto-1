@@ -24,11 +24,17 @@ enum Line {
 typedef Circle = Pt & {radius:Float, ?vx:Float, ?vy:Float, ?color:Int};
 typedef Neighbor = {circle:Circle, distance:Float};
 
+
+// travel is the number of radians degrees travelled already
+// it starts at zero and is used to conrol spin changes
 typedef Joint =
   { pivot: Circle,
-    endPoints: Array<Circle>    
+    endPoints: Array<{spin:Float, circle:Circle, travel:Float}>,
   };
 
+typedef Bone =
+  {pivot: Circle,
+   butt: Circle};
 
 class Main extends Sprite
 {
@@ -37,7 +43,7 @@ class Main extends Sprite
   var timestamp:Float;
 
   var circleTrials = 10000;
-  var jointTrails = 1000;
+  //var jointTrails = 1000;
 
   var sampleRate:Float = 0.01;
   var sampleGap:Float = 5.0;
@@ -47,9 +53,10 @@ class Main extends Sprite
   var topology:Map<Circle,Array<Neighbor>> = new Map();
   var nearestCircle:Map<Pt,{circle:Circle, dx:Float,dy:Float}> = new Map();
   var joints:Map<Circle, Joint> = new Map();
-
+  var nearestBone:Map<Circle, Bone> = new Map();
+  
   var branchingFactor = 4;
-  var boneBindingDistance :Float = 70;
+  var boneBindingDistance :Float = 80;
   var radiiSizes = 10;
   var radiusGradient = 3.0;
 
@@ -69,7 +76,6 @@ class Main extends Sprite
     stage.addEventListener( MouseEvent.MOUSE_DOWN, onMouseDown);
     stage.addEventListener( MouseEvent.MOUSE_UP, onMouseUp);
     stage.addEventListener( MouseEvent.MOUSE_MOVE, onMouseMove);
-    //stage.addEventListener( Event.ENTER_FRAME, perFrame);
     animTimer = new Timer( framePause );
     animTimer.addEventListener( TimerEvent.TIMER, perFrame);
   }
@@ -115,7 +121,8 @@ class Main extends Sprite
   function addJoints ()
   {
     this.joints = new Map();
-    var bones:Array<Array<Circle>> = [];
+    //var bones:Array<Array<Circle>> = [];
+    var bones:Array<Bone> = [];
     var candidates = circles.copy();
     candidates.sort( (a,b) -> Std.int(b.radius - a.radius));
     var frontier:Array<Circle> = [];
@@ -124,12 +131,14 @@ class Main extends Sprite
       return (pt:Circle) -> {
         if (pivot.radius < pt.radius) return false;
         for (bone in bones)
-          if (linesIntersect(bone[0],bone[1],pivot,pt))
+          if (linesIntersect( bone.pivot, bone.butt, pivot, pt ))
             return false;
         return !lineIntersectsPath(pt, pivot);
       };
     };
     
+    var randomSpin = () -> if (Math.random() > 0.5) -1 * Math.random() else Math.random();
+
     while (candidates.length > 0)
       {
         frontier.push( candidates.shift() );
@@ -140,31 +149,61 @@ class Main extends Sprite
             if (endPoints.length > 0)
               {
                 endPoints.sort( (a,b) -> Std.int(ptDist(b,pivot) - ptDist(a,pivot) ));
+                endPoints = endPoints.slice(0,branchingFactor);
+
                 var joint = {
                 pivot: pivot,
-                endPoints: endPoints.slice(0,branchingFactor)
+                endPoints: endPoints.map( c -> {circle:c, spin : randomSpin(), travel:0.0} )
                 };
 
-                joints[pivot] = joint;
+                this.joints[ pivot ] = joint;
 
-                frontier = frontier.concat( joint.endPoints );
+                frontier = frontier.concat( endPoints );
 
-                for (pt in joint.endPoints)
-                  bones.push( [pivot, pt]);
+                for (pt in endPoints)
+                  bones.push( {pivot: pivot, butt: pt} );
 
                 candidates = candidates // remove circles that intersect already
                   .filter( c -> {
                       for (b in bones)
-                        if (c == b[0] || c == b[1] || circleWithinBoneBindingDistance(c,b[0],b[1]))
-                            //circleIntersectsLineSegment(c, bone[0], bone[1]))
+                        if (c == b.pivot ||
+                            c == b.butt ||
+                            circleWithinBoneBindingDistance(c,b.pivot,b.butt))
                           return false;
                       return true;
                     });
               }
-          }    
+          }
       }
+    pairCirclesWithBones( bones );
   }
-  
+
+
+  function pairCirclesWithBones( bones : Array<Bone> )
+  {
+    var validBone = (c:Circle) -> {
+      return (b:Bone) ->
+      c != b.butt && c != b.pivot &&
+      (isBetween( b.pivot.x, c.x, b.butt.x ) ||
+       isBetween( b.pivot.y, c.y, b.butt.y ) );
+    };
+
+    var boneless = 0;
+
+    for (c in circles)
+      {
+        var valid = bones.filter( validBone(c) );
+        valid.sort( (bone1, bone2) ->
+                    Std.int(distanceToLine( c, lineOfSegment(bone1.pivot, bone1.butt)) -
+                            distanceToLine( c, lineOfSegment(bone2.pivot, bone2.butt))) );
+
+        if (valid.length > 0)
+          nearestBone[c] = valid[0];
+        else
+          boneless += 1;
+      }
+    trace('boneless: $boneless, circles: ${circles.length}');
+  }
 
   function isNeighbor(c1: Circle, c2:Circle) :Bool
   {
@@ -325,16 +364,16 @@ class Main extends Sprite
     return circleIntersectsLineSegment({x:circ.x, y:circ.y, radius:boneBindingDistance}, pt1, pt2);
   }
 
-  // static function distanceToLine(pt:Pt, line:Line):Float
-  // {
-  //   return switch (line)
-  //     {
-  //     case Vertical(xVal): Math.abs(pt.x - xVal);
-  //     case Horizontal(yVal): Math.abs(pt.y - yVal);
-  //     case Sloped(m,y):
-  //       Math.abs( m * pt.x - pt.y + b ) / Math.sqrt( m * m + 1);
-  //     };
-  // }
+  static function distanceToLine(pt:Pt, line:Line):Float
+  {
+    return switch (line)
+      {
+      case Vertical(xVal): Math.abs(pt.x - xVal);
+      case Horizontal(yVal): Math.abs(pt.y - yVal);
+      case Sloped(m,b):
+        Math.abs( m * pt.x - pt.y + b ) / Math.sqrt( m * m + 1);
+      };
+  }
 
   static function circleIntersectsLineSegment(circ:Circle, pt1:Pt, pt2:Pt) : Bool
   {
@@ -435,11 +474,11 @@ class Main extends Sprite
 
   function drawBones()
   {
-    graphics.lineStyle(2,0);
+    graphics.lineStyle(10,0xff0000);
     for (val in this.joints)
       for (pt in val.endPoints) {
         graphics.moveTo(val.pivot.x, val.pivot.y);
-        graphics.lineTo(pt.x, pt.y);
+        graphics.lineTo(pt.circle.x, pt.circle.y);
       }
   }
 
