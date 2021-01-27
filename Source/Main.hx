@@ -43,7 +43,9 @@ class Main extends Sprite
   var radiusGradient = 3.0;
   var circles:Array<Circle> = [];
   var neighborRadius : Float;
-  var driftTolerance = 0.05; // 8%
+  var driftTolerance = 0.5; // 8%
+
+  var dontDrawLargerThan = 200;
 
   //  var minSubgraphSize = 1;
   //var maxSubgraphSize = 3;
@@ -139,24 +141,6 @@ class Main extends Sprite
       for (c2 in circles)
         if ( validNeighbor( c1, c2 ) )
           connect(c1,c2);
-  }
-
-
-  // circles are points
-  function nearestValidNeighbors(center:Pt, n:Int):Array<Pt>
-  {
-    var nearest = [];
-
-    for (pt in circles)
-      if (pt != center && (!lineIntersectsPath(center,pt) || path.contains( center )))
-        if (nearest.length < n) {
-          nearest.push(pt);
-        } else {
-          var d = ptDist(pt, center);
-          nearest = [for (np in nearest) if (d < ptDist(np,center)) pt else np];
-        }
-
-    return nearest;
   }
 
   function lineIntersectsPath(a:Pt,b:Pt):Bool
@@ -345,9 +329,11 @@ class Main extends Sprite
 
   function drawCircle(c:Circle)
   {
-    graphics.beginFill( c.color , 0.3);
-    //graphics.beginFill( 0);
-    graphics.drawCircle( c.x, c.y, c.radius );
+    if ( c.radius <= dontDrawLargerThan)
+      {
+        graphics.beginFill( c.color , 0.7);
+        graphics.drawCircle( c.x, c.y, c.radius );
+      }
   }
 
   function drawCircles()
@@ -469,7 +455,8 @@ class Main extends Sprite
     first.x = nearest.circle.x + nearest.dx;
     first.y = nearest.circle.y + nearest.dy;
 
-    graphics.beginFill(0x999999);
+    graphics.lineStyle(radiusGradient * 2, 0);
+    graphics.beginFill(0xfaeeee);
     graphics.moveTo(first.x, first.y);
 
     for (pt in path.slice(1))
@@ -504,32 +491,37 @@ class Main extends Sprite
             var radRatio = nbr.circle.radius / c.radius;
 
             //end of tether case
-            if ( Math.abs(dist - nbr.distance) / nbr.distance > driftTolerance
-                 && nbr.circle.radius <= c.radius || circlesIntersect(c, nbr.circle))
+            if ( Math.abs(dist - nbr.distance) / nbr.distance > driftTolerance)
+                 // || circlesIntersect(c, nbr.circle))
               {
-                if (Math.abs(dx) > Math.abs(dy))
-                  vx += (dx / (dist*dist)) * nbr.circle.vx * radRatio;
-                else
-                  vy += (dx / (dist*dist)) * nbr.circle.vy * radRatio;
+                vx += nbr.circle.vx / dx * radRatio;
+                vy += nbr.circle.vy / dy * radRatio;
               }
-            else if (nbr.circle.radius > c.radius) // normal caase
+            else 
               {
-                vx += (dx / (dist*dist)) * Math.sqrt(nbr.circle.radius / c.radius);
-                vy += (dy / (dist*dist)) * Math.sqrt(nbr.circle.radius / c.radius);
+                vx += c.vx; // will average out later
+                vy += c.vy;
               }
+            // else if (nbr.circle.radius > c.radius) // normal caase
+            //   {
+            //     vx += (dx / (dist));// * Math.sqrt(nbr.circle.radius / c.radius);
+            //     vy += (dy / (dist));// * Math.sqrt(nbr.circle.radius / c.radius);
+            //   }
           }
 
+
+        c.vx = (c.vx + vx) / (topology[c].length + 1);
+        c.vy = (c.vy + vy) / (topology[c].length + 1);
+
         if (c.x >= stage.stageWidth || c.x <= 0)
-          vx *= -1;
+          c.vx *= -1;
 
         if (c.y >= stage.stageHeight || c.y <= 0)
-          vy *= -1;
+          c.vy *= -1;
 
-        c.vx = vx / topology[c].length;
-        c.vy = vy / topology[c].length;
 
-        c.x += c.vx + cosStamp * c.x / stage.stageWidth;
-        c.y += c.vy + sinStamp * c.y / stage.stageHeight;
+        c.x += c.vx ;// + cosStamp * c.x / stage.stageWidth;
+        c.y += c.vy ; // + sinStamp * c.y / stage.stageHeight;
 
         c.x = Math.max( 0, Math.min( stage.stageWidth,  c.x ));
         c.y = Math.max( 0, Math.min( stage.stageHeight, c.y ));
