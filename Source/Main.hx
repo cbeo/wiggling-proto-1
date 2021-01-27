@@ -55,8 +55,10 @@ class Main extends Sprite
   var joints:Map<Circle, Joint> = new Map();
   var nearestBone:Map<Circle, Bone> = new Map();
   
-  var branchingFactor = 4;
-  var boneBindingDistance :Float = 80;
+
+
+  var branchingFactor = 1;
+  var boneBindingDistance :Float = 40;
   var radiiSizes = 10;
   var radiusGradient = 3.0;
 
@@ -129,7 +131,7 @@ class Main extends Sprite
 
     var validCandidate = (pivot:Circle) -> {
       return (pt:Circle) -> {
-        if (pivot.radius < pt.radius) return false;
+        if (pivot.radius <= pt.radius) return false;
         for (bone in bones)
           if (linesIntersect( bone.pivot, bone.butt, pivot, pt ))
             return false;
