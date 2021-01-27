@@ -24,33 +24,39 @@ enum Line {
 typedef Circle = Pt & {radius:Float, ?vx:Float, ?vy:Float, ?color:Int};
 typedef Neighbor = {circle:Circle, distance:Float};
 
+typedef Joint =
+  { pivot: Circle,
+    endPoints: Array<Circle>    
+  };
+
 
 class Main extends Sprite
 {
 
   var drawing = false;
   var timestamp:Float;
-  //  var animating = false;
 
   var circleTrials = 10000;
+  var jointTrails = 1000;
 
   var sampleRate:Float = 0.01;
   var sampleGap:Float = 5.0;
 
   var path:Array<Pt>;
+  var circles:Array<Circle> = [];
+  var topology:Map<Circle,Array<Neighbor>> = new Map();
+  var nearestCircle:Map<Pt,{circle:Circle, dx:Float,dy:Float}> = new Map();
+  var joints:Map<Circle, Joint> = new Map();
 
+  var branchingFactor = 4;
+  var boneBindingDistance :Float = 70;
   var radiiSizes = 10;
   var radiusGradient = 3.0;
-  var circles:Array<Circle> = [];
+
   var neighborRadius : Float;
   var driftTolerance = 0.5; // 8%
 
   var dontDrawLargerThan = 20;
-
-  //  var minSubgraphSize = 1;
-  //var maxSubgraphSize = 3;
-  var topology:Map<Circle,Array<Neighbor>> = new Map();
-  var nearestCircle:Map<Pt,{circle:Circle, dx:Float,dy:Float}> = new Map();
 
   var framePause = 1.0 / 4;
   var animTimer : Timer;
@@ -96,6 +102,69 @@ class Main extends Sprite
       }
   }
 
+  // pivots cannot be strictly smaller than end joints
+  // any circle can intersect at most one bone
+  // bones cannot intersect
+  // when at all possible, joints should form a tree;
+
+  // starting from largest radii to smallest, for each circle, find
+  // candidate bones, pick two largest bones, form a joint,
+  // eliminate all intersecting circles from candidacy, start again
+  // from each endpoint.
+  
+  function addJoints ()
+  {
+    this.joints = new Map();
+    var bones:Array<Array<Circle>> = [];
+    var candidates = circles.copy();
+    candidates.sort( (a,b) -> Std.int(b.radius - a.radius));
+    var frontier:Array<Circle> = [];
+
+    var validCandidate = (pivot:Circle) -> {
+      return (pt:Circle) -> {
+        if (pivot.radius < pt.radius) return false;
+        for (bone in bones)
+          if (linesIntersect(bone[0],bone[1],pivot,pt))
+            return false;
+        return !lineIntersectsPath(pt, pivot);
+      };
+    };
+    
+    while (candidates.length > 0)
+      {
+        frontier.push( candidates.shift() );
+        while (frontier.length > 0 && candidates.length > 0)
+          {
+            var pivot = frontier.pop();
+            var endPoints = candidates.filter( validCandidate( pivot ));
+            if (endPoints.length > 0)
+              {
+                endPoints.sort( (a,b) -> Std.int(ptDist(b,pivot) - ptDist(a,pivot) ));
+                var joint = {
+                pivot: pivot,
+                endPoints: endPoints.slice(0,branchingFactor)
+                };
+
+                joints[pivot] = joint;
+
+                frontier = frontier.concat( joint.endPoints );
+
+                for (pt in joint.endPoints)
+                  bones.push( [pivot, pt]);
+
+                candidates = candidates // remove circles that intersect already
+                  .filter( c -> {
+                      for (b in bones)
+                        if (c == b[0] || c == b[1] || circleWithinBoneBindingDistance(c,b[0],b[1]))
+                            //circleIntersectsLineSegment(c, bone[0], bone[1]))
+                          return false;
+                      return true;
+                    });
+              }
+          }    
+      }
+  }
+  
 
   function isNeighbor(c1: Circle, c2:Circle) :Bool
   {
@@ -202,7 +271,7 @@ class Main extends Sprite
     return false;
   }
   
-  function circleIntersectsLine(circ:Circle,line:Line):Bool
+  static function circleIntersectsLine(circ:Circle,line:Line):Bool
   {
     switch (line)
       {
@@ -223,7 +292,7 @@ class Main extends Sprite
       }
   }
 
-  function isBetween(a:Float, b:Float, c:Float):Bool
+  static function isBetween(a:Float, b:Float, c:Float):Bool
   {
     if (a < c)
       return a <= b && b <= c;
@@ -251,6 +320,29 @@ class Main extends Sprite
     return false;
   }
 
+  function circleWithinBoneBindingDistance(circ:Circle, pt1:Pt, pt2:Pt):Bool
+  {
+    return circleIntersectsLineSegment({x:circ.x, y:circ.y, radius:boneBindingDistance}, pt1, pt2);
+  }
+
+  // static function distanceToLine(pt:Pt, line:Line):Float
+  // {
+  //   return switch (line)
+  //     {
+  //     case Vertical(xVal): Math.abs(pt.x - xVal);
+  //     case Horizontal(yVal): Math.abs(pt.y - yVal);
+  //     case Sloped(m,y):
+  //       Math.abs( m * pt.x - pt.y + b ) / Math.sqrt( m * m + 1);
+  //     };
+  // }
+
+  static function circleIntersectsLineSegment(circ:Circle, pt1:Pt, pt2:Pt) : Bool
+  {
+    return circleIntersectsLine( circ, lineOfSegment( pt1, pt2)) &&
+      (isBetween( pt1.x, circ.x, pt2.x) || isBetween(pt1.y, circ.y, pt2.y));
+  }
+
+  
   static function circleContainsPt( circle:Circle, pt:Pt):Bool
   {
     return circle.radius >= ptDist(circle, pt);
@@ -341,6 +433,16 @@ class Main extends Sprite
     for (c in circles) drawCircle(c);
   }
 
+  function drawBones()
+  {
+    graphics.lineStyle(2,0);
+    for (val in this.joints)
+      for (pt in val.endPoints) {
+        graphics.moveTo(val.pivot.x, val.pivot.y);
+        graphics.lineTo(pt.x, pt.y);
+      }
+  }
+
   function drawTopology()
   {
     //graphics.lineStyle(1,0);
@@ -359,6 +461,7 @@ class Main extends Sprite
     graphics.clear();
     adjustPathAndDraw();
     drawCircles();
+    drawBones();
     //drawTopology();
 
   }
@@ -430,7 +533,8 @@ class Main extends Sprite
             path.reverse();
 
           addCircles();
-          addTopology();
+          addJoints();
+          //addTopology();
           addNearestCircles();
           //render();
           
