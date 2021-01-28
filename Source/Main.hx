@@ -56,7 +56,7 @@ class Main extends Sprite
   var nearestBone:Map<Circle, {bone:Bone, radialDiff:Float, dist:Float}> = new Map();
   
 
-  var maximumTravelAngle = Math.PI / 4; // radians
+  var maximumTravelAngle = Math.PI / 40; // radians
   var branchingFactor = 1;
   var boneBindingDistance :Float = 40;
   var radiiSizes = 10;
@@ -513,7 +513,7 @@ class Main extends Sprite
     graphics.clear();
     adjustPathAndDraw();
     drawCircles();
-    drawBones();
+    // drawBones();
     //drawTopology();
 
   }
