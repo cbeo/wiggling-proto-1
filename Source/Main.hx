@@ -56,8 +56,8 @@ class Main extends Sprite
   var nearestBone:Map<Circle, {bone:Bone, radialDiff:Float, dist:Float}> = new Map();
   
 
-  var maximumTravelAngle = Math.PI / 30; // radians
-  var branchingFactor = 3;
+  var maximumTravelAngle = Math.PI / 50; // radians
+  var branchingFactor = 1;
   var boneBindingDistance :Float = 65;
 
   // var radiiSizes = 10;
@@ -142,7 +142,8 @@ class Main extends Sprite
       };
     };
     
-    var randomSpin = () -> if (Math.random() > 0.5) -1 * Math.random() else Math.random();
+    var randomSpin =
+      () -> Math.PI / 180 * (if (Math.random() > 0.5) -1 * Math.random() else Math.random());
 
     while (candidates.length > 0)
       {
@@ -654,7 +655,7 @@ class Main extends Sprite
         var joint = joints[bone.bone.pivot].endPoints.find( e -> e.circle == bone.bone.butt);
         if (joint == null) continue;
 
-        rotatePtAboutPivot( bone.bone.pivot, c, joint.spin / 80, bone.dist);
+        rotatePtAboutPivot( bone.bone.pivot, c, joint.spin, bone.dist);
 
         c.x += cosStamp * c.x / stage.stageWidth;
         c.y += sinStamp * c.y / stage.stageHeight;
@@ -670,17 +671,17 @@ class Main extends Sprite
       {
         for (c in joint.endPoints)
           {
-            if ( Math.abs(c.travel) >= maximumTravelAngle )
+            if ( Math.abs(c.travel) > maximumTravelAngle)
               c.spin *= -1;
-
-            c.travel += c.spin / 80; // TODO ELIMINATE MAGIC NUMBER
-
+            
+            c.travel += c.spin;
+            
             rotatePtAboutPivot( joint.pivot,
                                 c.circle,
-                                c.spin / 80,
+                                c.spin,
                                 c.dist
                                 );
-
+            
           }
       }
   }
