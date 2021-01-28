@@ -29,7 +29,7 @@ typedef Neighbor = {circle:Circle, distance:Float};
 // it starts at zero and is used to conrol spin changes
 typedef Joint =
   { pivot: Circle,
-    endPoints: Array<{spin:Float, circle:Circle, travel:Float}>,
+    endPoints: Array<{spin:Float, circle:Circle, origAngle: Float, travel:Float, dist:Float}>,
   };
 
 typedef Bone =
@@ -53,10 +53,10 @@ class Main extends Sprite
   var topology:Map<Circle,Array<Neighbor>> = new Map();
   var nearestCircle:Map<Pt,{circle:Circle, dx:Float,dy:Float}> = new Map();
   var joints:Map<Circle, Joint> = new Map();
-  var nearestBone:Map<Circle, Bone> = new Map();
+  var nearestBone:Map<Circle, {bone:Bone, radialDiff:Float, dist:Float}> = new Map();
   
 
-
+  var maximumTravelAngle = Math.PI / 4; // radians
   var branchingFactor = 1;
   var boneBindingDistance :Float = 40;
   var radiiSizes = 10;
@@ -155,7 +155,14 @@ class Main extends Sprite
 
                 var joint = {
                 pivot: pivot,
-                endPoints: endPoints.map( c -> {circle:c, spin : randomSpin(), travel:0.0} )
+                endPoints:
+                endPoints.map( c -> {
+                      circle: c,
+                      spin : randomSpin(),
+                      origAngle: calcAngleBetween(pivot, c, {x:-1,y:0}),
+                      travel: 0.0,
+                      dist: ptDist( pivot, c )
+                      })
                 };
 
                 this.joints[ pivot ] = joint;
@@ -200,7 +207,11 @@ class Main extends Sprite
                             distanceToLine( c, lineOfSegment(bone2.pivot, bone2.butt))) );
 
         if (valid.length > 0)
-          nearestBone[c] = valid[0];
+          nearestBone[c] = {
+          bone:valid[0],
+          radialDiff: calcAngleBetween( valid[0].pivot, valid[0].butt, c),
+          dist: ptDist(valid[0].pivot, c)
+          };
         else
           boneless += 1;
       }
@@ -616,7 +627,16 @@ class Main extends Sprite
     graphics.lineTo(first.x, first.y);
   }
 
+  static function calcAngleBetween (center:Pt, p1:Pt, p2:Pt):Float
+  {
+    var v1 = {x: p1.x - center.x, y: p1.y - center.y};
+    var v2 = {x: p2.x - center.x, y: p2.y - center.y};
 
+    var dot = (p:Pt,q:Pt) -> p.x * q.x + p.y * q.y;
+
+    return Math.acos( dot(v1,v2) / Math.sqrt( dot(v1,v1) * dot(v2,v2) ));
+
+  }
 
   function moveCircles ()
   {
@@ -625,6 +645,13 @@ class Main extends Sprite
     var sinStamp = Math.sin(stamp);
     for (c in circles)
       {
+        var bone = nearestBone[c];
+        if (bone == null) continue;
+        var joint = joints[bone.bone.pivot].endPoints.find( e -> e.circle == bone.bone.butt);
+        if (joint == null) continue;
+
+        rotatePtAboutPivot( bone.bone.pivot, c, joint.spin / 40, bone.dist);
+
         c.x += cosStamp * c.x / stage.stageWidth;
         c.y += sinStamp * c.y / stage.stageHeight;
 
@@ -633,7 +660,41 @@ class Main extends Sprite
       }
   }
 
-  function moveJoints() {}
+  function moveJoints()
+  {
+    for (joint in joints)
+      {
+        for (c in joint.endPoints)
+          {
+            if ( Math.abs(c.travel) >= maximumTravelAngle )
+              c.spin *= -1;
+
+            c.travel += c.spin / 40; // TODO ELIMINATE MAGIC NUMBER
+
+            rotatePtAboutPivot( joint.pivot,
+                                c.circle,
+                                c.spin / 40,
+                                c.dist
+                                );
+
+          }
+      }
+  }
+
+  static inline function rotatePtAboutPivot( pivot:Pt, butt:Pt, radians: Float, dist:Float)
+  {
+    var sine = Math.sin( radians );
+    var cosine = Math.cos( radians );
+
+    butt.x -= pivot.x;
+    butt.y -= pivot.y;
+
+    var newx = cosine * butt.x - sine * butt.y;
+    var newy = sine * butt.x + cosine * butt.y;
+
+    butt.x = newx + pivot.x;
+    butt.y = newy + pivot.y;
+  }
 
 
   function perFrame (e)
