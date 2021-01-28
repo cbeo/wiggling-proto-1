@@ -56,16 +56,19 @@ class Main extends Sprite
   var nearestBone:Map<Circle, {bone:Bone, radialDiff:Float, dist:Float}> = new Map();
   
 
-  var maximumTravelAngle = Math.PI / 40; // radians
-  var branchingFactor = 1;
-  var boneBindingDistance :Float = 40;
-  var radiiSizes = 10;
-  var radiusGradient = 3.0;
+  var maximumTravelAngle = Math.PI / 30; // radians
+  var branchingFactor = 3;
+  var boneBindingDistance :Float = 65;
+
+  // var radiiSizes = 10;
+  // var radiusGradient = 3.0;
+  var radiiSizes = 15;
+  var radiusGradient = 4.0;
 
   var neighborRadius : Float;
   var driftTolerance = 0.5; // 8%
 
-  var dontDrawLargerThan = 20;
+  var dontDrawLargerThan = 25;
 
   var framePause = 1.0 / 4;
   var animTimer : Timer;
@@ -151,6 +154,7 @@ class Main extends Sprite
             if (endPoints.length > 0)
               {
                 endPoints.sort( (a,b) -> Std.int(ptDist(b,pivot) - ptDist(a,pivot) ));
+                //endPoints.sort( (a,b) -> Std.int(ptDist(a,pivot) - ptDist(b,pivot) ));
                 endPoints = endPoints.slice(0,branchingFactor);
 
                 var joint = {
@@ -487,7 +491,7 @@ class Main extends Sprite
 
   function drawBones()
   {
-    graphics.lineStyle(10,0xff0000);
+    graphics.lineStyle(1,0x0);
     for (val in this.joints)
       for (pt in val.endPoints) {
         graphics.moveTo(val.pivot.x, val.pivot.y);
@@ -513,7 +517,7 @@ class Main extends Sprite
     graphics.clear();
     adjustPathAndDraw();
     drawCircles();
-    // drawBones();
+    //drawBones();
     //drawTopology();
 
   }
@@ -611,7 +615,7 @@ class Main extends Sprite
     first.x = nearest.circle.x + nearest.dx;
     first.y = nearest.circle.y + nearest.dy;
 
-    graphics.lineStyle(radiusGradient * 2, 0);
+    graphics.lineStyle( 4, 0);
     graphics.beginFill(0xfaeeee);
     graphics.moveTo(first.x, first.y);
 
@@ -650,7 +654,7 @@ class Main extends Sprite
         var joint = joints[bone.bone.pivot].endPoints.find( e -> e.circle == bone.bone.butt);
         if (joint == null) continue;
 
-        rotatePtAboutPivot( bone.bone.pivot, c, joint.spin / 40, bone.dist);
+        rotatePtAboutPivot( bone.bone.pivot, c, joint.spin / 80, bone.dist);
 
         c.x += cosStamp * c.x / stage.stageWidth;
         c.y += sinStamp * c.y / stage.stageHeight;
@@ -669,11 +673,11 @@ class Main extends Sprite
             if ( Math.abs(c.travel) >= maximumTravelAngle )
               c.spin *= -1;
 
-            c.travel += c.spin / 40; // TODO ELIMINATE MAGIC NUMBER
+            c.travel += c.spin / 80; // TODO ELIMINATE MAGIC NUMBER
 
             rotatePtAboutPivot( joint.pivot,
                                 c.circle,
-                                c.spin / 40,
+                                c.spin / 80,
                                 c.dist
                                 );
 
