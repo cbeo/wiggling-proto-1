@@ -56,9 +56,9 @@ class Main extends Sprite
   var nearestBone:Map<Circle, {bone:Bone, radialDiff:Float, dist:Float}> = new Map();
   
 
-  var maximumTravelAngle = Math.PI / 50; // radians
+  var maximumTravelAngle = Math.PI / 30; // radians
   var branchingFactor = 1;
-  var boneBindingDistance :Float = 65;
+  var boneBindingDistance :Float = 90;
 
   // var radiiSizes = 10;
   // var radiusGradient = 3.0;
@@ -126,7 +126,6 @@ class Main extends Sprite
   function addJoints ()
   {
     this.joints = new Map();
-    //var bones:Array<Array<Circle>> = [];
     var bones:Array<Bone> = [];
     var candidates = circles.copy();
     candidates.sort( (a,b) -> Std.int(b.radius - a.radius));
@@ -172,10 +171,12 @@ class Main extends Sprite
 
                 this.joints[ pivot ] = joint;
 
-                frontier = frontier.concat( endPoints );
-
                 for (pt in endPoints)
                   bones.push( {pivot: pivot, butt: pt} );
+
+
+                frontier = endPoints.concat( frontier);  // made newer points first
+
 
                 candidates = candidates // remove circles that intersect already
                   .filter( c -> {
@@ -190,16 +191,23 @@ class Main extends Sprite
           }
       }
     pairCirclesWithBones( bones );
+
+    for (j in joints) {
+      trace('-----------------------');
+      trace('joint end points: ${j.endPoints.length}');
+      for (e in j.endPoints)
+        trace('spin: ${e.spin}');
+    }
   }
 
 
   function pairCirclesWithBones( bones : Array<Bone> )
   {
     var validBone = (c:Circle) -> {
-      return (b:Bone) ->
-      c != b.butt && c != b.pivot &&
-      (isBetween( b.pivot.x, c.x, b.butt.x ) ||
-       isBetween( b.pivot.y, c.y, b.butt.y ) );
+      return (b:Bone) -> c != b.butt && c != b.pivot;
+      //&&
+      //(isBetween( b.pivot.x, c.x, b.butt.x ) ||
+      //isBetween( b.pivot.y, c.y, b.butt.y ) );
     };
 
     var boneless = 0;
@@ -518,7 +526,7 @@ class Main extends Sprite
     graphics.clear();
     adjustPathAndDraw();
     drawCircles();
-    //drawBones();
+    drawBones();
     //drawTopology();
 
   }
@@ -671,7 +679,7 @@ class Main extends Sprite
       {
         for (c in joint.endPoints)
           {
-            if ( Math.abs(c.travel) > maximumTravelAngle)
+            if ( Math.abs(c.travel) >= maximumTravelAngle )
               c.spin *= -1;
             
             c.travel += c.spin;
