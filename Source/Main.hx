@@ -25,11 +25,19 @@ typedef Circle = Pt & {radius:Float, ?vx:Float, ?vy:Float, ?color:Int};
 typedef Neighbor = {circle:Circle, distance:Float};
 
 
+typedef EndPoint =
+  {
+  spin:Float,
+  circle:Circle,
+  travel:Float,
+  active:Bool
+  };
+
 // travel is the number of radians degrees travelled already
 // it starts at zero and is used to conrol spin changes
 typedef Joint =
   { pivot: Circle,
-    endPoints: Array<{spin:Float, circle:Circle, origAngle: Float, travel:Float, dist:Float}>,
+    endPoints: Array<EndPoint>
   };
 
 typedef Bone =
@@ -56,8 +64,8 @@ class Main extends Sprite
   var nearestBone:Map<Circle, {bone:Bone, radialDiff:Float, dist:Float}> = new Map();
   
 
-  var maximumTravelAngle = Math.PI / 30; // radians
-  var branchingFactor = 1;
+  var maximumTravelAngle = Math.PI / 60; // radians
+  var branchingFactor = 2;
   var boneBindingDistance :Float = 90;
 
   // var radiiSizes = 10;
@@ -134,9 +142,15 @@ class Main extends Sprite
     var validCandidate = (pivot:Circle) -> {
       return (pt:Circle) -> {
         if (pivot.radius <= pt.radius) return false;
-        for (bone in bones)
+        for (bone in bones) {
           if (linesIntersect( bone.pivot, bone.butt, pivot, pt ))
             return false;
+
+          if (bone.pivot == pivot &&
+              calcAngleBetween(pivot, bone.butt, pt) < maximumTravelAngle)
+            return false;
+        }
+
         return !lineIntersectsPath(pt, pivot);
       };
     };
@@ -163,20 +177,19 @@ class Main extends Sprite
                 endPoints.map( c -> {
                       circle: c,
                       spin : randomSpin(),
-                      origAngle: calcAngleBetween(pivot, c, {x:-1,y:0}),
                       travel: 0.0,
-                      dist: ptDist( pivot, c )
+                      active: false
                       })
                 };
 
+                joint.endPoints[0].active = true;
+                
                 this.joints[ pivot ] = joint;
 
                 for (pt in endPoints)
                   bones.push( {pivot: pivot, butt: pt} );
 
-
                 frontier = endPoints.concat( frontier);  // made newer points first
-
 
                 candidates = candidates // remove circles that intersect already
                   .filter( c -> {
@@ -191,26 +204,17 @@ class Main extends Sprite
           }
       }
     pairCirclesWithBones( bones );
-
-    for (j in joints) {
-      trace('-----------------------');
-      trace('joint end points: ${j.endPoints.length}');
-      for (e in j.endPoints)
-        trace('spin: ${e.spin}');
-    }
   }
 
 
   function pairCirclesWithBones( bones : Array<Bone> )
   {
     var validBone = (c:Circle) -> {
-      return (b:Bone) -> c != b.butt && c != b.pivot;
+      return (b:Bone) -> c != b.pivot; //&& c != b.butt; 
       //&&
       //(isBetween( b.pivot.x, c.x, b.butt.x ) ||
       //isBetween( b.pivot.y, c.y, b.butt.y ) );
     };
-
-    var boneless = 0;
 
     for (c in circles)
       {
@@ -218,17 +222,15 @@ class Main extends Sprite
         valid.sort( (bone1, bone2) ->
                     Std.int(distanceToLine( c, lineOfSegment(bone1.pivot, bone1.butt)) -
                             distanceToLine( c, lineOfSegment(bone2.pivot, bone2.butt))) );
-
         if (valid.length > 0)
-          nearestBone[c] = {
-          bone:valid[0],
-          radialDiff: calcAngleBetween( valid[0].pivot, valid[0].butt, c),
-          dist: ptDist(valid[0].pivot, c)
-          };
-        else
-          boneless += 1;
+          {
+            nearestBone[c] = {
+            bone:valid[0],
+            radialDiff: calcAngleBetween( valid[0].pivot, valid[0].butt, c),
+            dist: ptDist(valid[0].pivot, c)
+            };
+          }
       }
-    trace('boneless: $boneless, circles: ${circles.length}');
   }
 
   function isNeighbor(c1: Circle, c2:Circle) :Bool
@@ -659,11 +661,21 @@ class Main extends Sprite
     for (c in circles)
       {
         var bone = nearestBone[c];
-        if (bone == null) continue;
+        if (bone == null)
+          {
+            trace("------");
+            trace('no bone found for $c, skipping');
+            continue;
+          }
         var joint = joints[bone.bone.pivot].endPoints.find( e -> e.circle == bone.bone.butt);
-        if (joint == null) continue;
+        if (joint == null)
+          {
+            trace('no joint found for ${bone.bone.pivot} and $c, skipping');
+            continue;
+          }
 
-        rotatePtAboutPivot( bone.bone.pivot, c, joint.spin, bone.dist);
+        if (joint.active)
+          rotatePtAboutPivot( bone.bone.pivot, c, joint.spin);
 
         c.x += cosStamp * c.x / stage.stageWidth;
         c.y += sinStamp * c.y / stage.stageHeight;
@@ -673,28 +685,57 @@ class Main extends Sprite
       }
   }
 
+  // true if endpoint i intersects any of the lines of the other
+  function jointSelfIntersects (index:Int, joint:Joint):Bool
+  {
+    var c = joint.endPoints[index].circle;
+    for (i in 0...joint.endPoints.length)
+      if (i != index && circleIntersectsLineSegment( c, joint.pivot, joint.endPoints[i].circle))
+        return true;
+    return false;
+  }
+  
   function moveJoints()
   {
     for (joint in joints)
       {
-        for (c in joint.endPoints)
-          {
-            if ( Math.abs(c.travel) >= maximumTravelAngle )
-              c.spin *= -1;
+        for (i in 0 ... joint.endPoints.length)
+          if (joint.endPoints[i].active)
+            {
+              var c = joint.endPoints[i];
+              c.travel += c.spin;
+              
+              if ( Math.abs(c.travel) >= maximumTravelAngle  ||
+                   jointSelfIntersects(i, joint) ) //||
+                   //                   lineIntersectsPath(joint.pivot, c.circle))
+                {
+                  c.spin *= -1;
+                  c.travel += c.spin * 1.5;
+                  c.active = false;
+                  joint.endPoints[(i + 1) % joint.endPoints.length].active = true;
+                }
+              else
+                rotatePtAboutPivot( joint.pivot,
+                                    c.circle,
+                                    c.spin );                  
+            }
+           
+
+        // for (c in joint.endPoints)
+        //   {
+        //     if ( Math.abs(c.travel) >= maximumTravelAngle )
+        //       c.spin *= -1;
+
+        //     c.travel += c.spin;
             
-            c.travel += c.spin;
-            
-            rotatePtAboutPivot( joint.pivot,
-                                c.circle,
-                                c.spin,
-                                c.dist
-                                );
-            
-          }
+        //     rotatePtAboutPivot( joint.pivot,
+        //                         c.circle,
+        //                         c.spin );                  
+        //   }
       }
   }
 
-  static inline function rotatePtAboutPivot( pivot:Pt, butt:Pt, radians: Float, dist:Float)
+  static inline function rotatePtAboutPivot( pivot:Pt, butt:Pt, radians: Float)
   {
     var sine = Math.sin( radians );
     var cosine = Math.cos( radians );
