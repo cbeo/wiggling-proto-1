@@ -64,9 +64,9 @@ class Main extends Sprite
   var nearestBone:Map<Circle, {bone:Bone, radialDiff:Float, dist:Float}> = new Map();
   
 
-  var maximumTravelAngle = Math.PI / 60; // radians
+  var maximumTravelAngle = Math.PI / 40; // radians
   var branchingFactor = 2;
-  var boneBindingDistance :Float = 60;
+  var boneBindingDistance :Float = 90;
 
   // var radiiSizes = 10;
   // var radiusGradient = 3.0;
@@ -141,9 +141,9 @@ class Main extends Sprite
 
     var validCandidate = (pivot:Circle) -> {
       return (pt:Circle) -> {
-        if (pivot.radius <= pt.radius) return false;
+        if (pivot.radius < pt.radius) return false;
         for (bone in bones) 
-          if (linesIntersect( bone.pivot, bone.butt, pivot, pt ))
+          if (bone.butt != pivot && linesIntersect( bone.pivot, bone.butt, pivot, pt ))
             return false;
         
         return !lineIntersectsPath(pt, pivot);
@@ -680,13 +680,22 @@ class Main extends Sprite
       }
   }
 
+  function sign (f:Float) :Float
+  {
+    return if (f < 0) -1 else if (f == 0) 0 else 1;
+  }
+
   // true if endpoint i intersects any of the lines of the other
   function jointSelfIntersects (index:Int, joint:Joint):Bool
   {
     var c = joint.endPoints[index].circle;
     for (i in 0...joint.endPoints.length)
       if (i != index && circleIntersectsLineSegment( c, joint.pivot, joint.endPoints[i].circle))
-        return true;
+        {
+          // TODO this is totally in the wrong fucking place, but oh well.
+          joint.endPoints[i].spin *= sign(joint.endPoints[i].spin) * sign(joint.endPoints[index].spin);
+          return true;
+        }
     return false;
   }
   
@@ -700,8 +709,8 @@ class Main extends Sprite
               var c = joint.endPoints[i];
               c.travel += c.spin;
               
-              if ( Math.abs(c.travel) >= maximumTravelAngle )// ||
-                   // jointSelfIntersects(i, joint) ) //||
+              if ( Math.abs(c.travel) >= maximumTravelAngle ||
+                   jointSelfIntersects(i, joint) ) //||
                    //                   lineIntersectsPath(joint.pivot, c.circle))
                 {
                   c.spin *= -1;
