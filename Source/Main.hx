@@ -66,7 +66,7 @@ class Main extends Sprite
 
   var maximumTravelAngle = Math.PI / 60; // radians
   var branchingFactor = 2;
-  var boneBindingDistance :Float = 90;
+  var boneBindingDistance :Float = 60;
 
   // var radiiSizes = 10;
   // var radiusGradient = 3.0;
@@ -142,15 +142,10 @@ class Main extends Sprite
     var validCandidate = (pivot:Circle) -> {
       return (pt:Circle) -> {
         if (pivot.radius <= pt.radius) return false;
-        for (bone in bones) {
+        for (bone in bones) 
           if (linesIntersect( bone.pivot, bone.butt, pivot, pt ))
             return false;
-
-          if (bone.pivot == pivot &&
-              calcAngleBetween(pivot, bone.butt, pt) < maximumTravelAngle)
-            return false;
-        }
-
+        
         return !lineIntersectsPath(pt, pivot);
       };
     };
@@ -705,8 +700,8 @@ class Main extends Sprite
               var c = joint.endPoints[i];
               c.travel += c.spin;
               
-              if ( Math.abs(c.travel) >= maximumTravelAngle  ||
-                   jointSelfIntersects(i, joint) ) //||
+              if ( Math.abs(c.travel) >= maximumTravelAngle )// ||
+                   // jointSelfIntersects(i, joint) ) //||
                    //                   lineIntersectsPath(joint.pivot, c.circle))
                 {
                   c.spin *= -1;
