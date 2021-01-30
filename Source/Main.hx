@@ -523,7 +523,7 @@ class Main extends Sprite
     graphics.clear();
     adjustPathAndDraw();
     drawCircles();
-    drawBones();
+    //drawBones();
     //drawTopology();
 
   }
